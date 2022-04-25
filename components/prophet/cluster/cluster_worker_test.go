@@ -38,7 +38,7 @@ func TestCreateShards(t *testing.T) {
 	var changedRes *metapb.Shard
 	var changedResFrom metapb.ShardState
 	var changedResTo metapb.ShardState
-	cluster.resourceStateChangedHandler = func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState) {
+	cluster.shardStateChangedHandler = func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState) {
 		changedRes = res
 		changedResFrom = from
 		changedResTo = to
@@ -134,10 +134,10 @@ func TestRemoveShards(t *testing.T) {
 	nc := cluster.ChangedEventNotifier()
 
 	n, np := uint64(7), uint64(3)
-	resources := newTestShards(n, np)
+	shards := newTestShards(n, np)
 	// add 1,2,3,4,5,6
 	for i := uint64(1); i < n; i++ {
-		cluster.processShardHeartbeat(resources[i])
+		cluster.processShardHeartbeat(shards[i])
 		checkNotifyCount(t, nc, event.ShardEvent, event.ShardStatsEvent)
 	}
 
@@ -148,7 +148,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), cluster.core.DestroyedShards.GetCardinality())
 	assert.True(t, cluster.core.DestroyedShards.Contains(removed[0]))
-	assert.Error(t, cluster.processShardHeartbeat(resources[1]))
+	assert.Error(t, cluster.processShardHeartbeat(shards[1]))
 	checkNotifyCount(t, nc, event.ShardEvent)
 
 	_, err = cluster.HandleRemoveShards(&rpcpb.ProphetRequest{
@@ -200,18 +200,18 @@ func TestShardHeartbeatAtRemovedState(t *testing.T) {
 	assert.Nil(t, cluster.addLeaderStore(1, 1))
 
 	n, np := uint64(2), uint64(3)
-	resources := newTestShards(n, np)
+	shards := newTestShards(n, np)
 	// add 1
 	for i := uint64(1); i < n; i++ {
-		cluster.processShardHeartbeat(resources[i])
+		cluster.processShardHeartbeat(shards[i])
 	}
 	cluster.HandleRemoveShards(&rpcpb.ProphetRequest{
 		RemoveShards: rpcpb.RemoveShardsReq{IDs: []uint64{1}},
 	})
 
 	stream := mockhbstream.NewHeartbeatStream()
-	co.hbStreams.BindStream(resources[1].Meta.GetReplicas()[0].StoreID, stream)
-	assert.NoError(t, cluster.HandleShardHeartbeat(resources[1]))
+	co.hbStreams.BindStream(shards[1].Meta.GetReplicas()[0].StoreID, stream)
+	assert.NoError(t, cluster.HandleShardHeartbeat(shards[1]))
 	rsp := stream.Recv()
 	assert.NotNil(t, rsp)
 	assert.True(t, rsp.DestroyDirectly)
@@ -223,10 +223,10 @@ func TestHandleCheckShardState(t *testing.T) {
 	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	n, np := uint64(7), uint64(3)
-	resources := newTestShards(n, np)
+	shards := newTestShards(n, np)
 	// add 1,2,3,4,5,6
 	for i := uint64(1); i < n; i++ {
-		cluster.processShardHeartbeat(resources[i])
+		cluster.processShardHeartbeat(shards[i])
 	}
 
 	ids := []uint64{1, 2, 3, 4, 5, 6}

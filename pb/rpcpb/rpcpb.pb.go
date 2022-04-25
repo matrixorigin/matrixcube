@@ -7,6 +7,7 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -25,7 +26,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // Type rpc type
 type Type int32
@@ -496,7 +497,7 @@ func (m *ProphetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_ProphetRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -721,7 +722,7 @@ func (m *ProphetResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_ProphetResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -938,7 +939,7 @@ func (m *ShardHeartbeatReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_ShardHeartbeatReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1059,7 +1060,7 @@ func (m *ShardHeartbeatRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_ShardHeartbeatRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1163,7 +1164,7 @@ func (m *PutStoreReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_PutStoreReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1211,7 +1212,7 @@ func (m *PutStoreRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_PutStoreRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1260,7 +1261,7 @@ func (m *StoreHeartbeatReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_StoreHeartbeatReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1315,7 +1316,7 @@ func (m *StoreHeartbeatRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_StoreHeartbeatRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1363,7 +1364,7 @@ func (m *GetStoreReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_GetStoreReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1412,7 +1413,7 @@ func (m *GetStoreRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_GetStoreRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1466,7 +1467,7 @@ func (m *AllocIDReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_AllocIDReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1507,7 +1508,7 @@ func (m *AllocIDRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_AllocIDRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1556,7 +1557,7 @@ func (m *AskBatchSplitReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_AskBatchSplitReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1611,7 +1612,7 @@ func (m *AskBatchSplitRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_AskBatchSplitRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1662,7 +1663,7 @@ func (m *CreateDestroyingReq) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_CreateDestroyingReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1731,7 +1732,7 @@ func (m *CreateDestroyingRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_CreateDestroyingRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1779,7 +1780,7 @@ func (m *GetDestroyingReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_GetDestroyingReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1827,7 +1828,7 @@ func (m *GetDestroyingRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_GetDestroyingRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1876,7 +1877,7 @@ func (m *ReportDestroyedReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ReportDestroyedReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1931,7 +1932,7 @@ func (m *ReportDestroyedRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ReportDestroyedRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1980,7 +1981,7 @@ func (m *SplitID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_SplitID.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2035,7 +2036,7 @@ func (m *CreateWatcherReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_CreateWatcherReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2084,7 +2085,7 @@ func (m *CreateShardsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_CreateShardsReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2138,7 +2139,7 @@ func (m *CreateShardsRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_CreateShardsRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2179,7 +2180,7 @@ func (m *RemoveShardsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_RemoveShardsReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2226,7 +2227,7 @@ func (m *RemoveShardsRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_RemoveShardsRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2267,7 +2268,7 @@ func (m *CheckShardStateReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CheckShardStateReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2316,7 +2317,7 @@ func (m *CheckShardStateRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CheckShardStateRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2371,7 +2372,7 @@ func (m *PutPlacementRuleReq) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_PutPlacementRuleReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2418,7 +2419,7 @@ func (m *PutPlacementRuleRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_PutPlacementRuleRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2459,7 +2460,7 @@ func (m *GetAppliedRulesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_GetAppliedRulesReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2507,7 +2508,7 @@ func (m *GetAppliedRulesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_GetAppliedRulesRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2555,7 +2556,7 @@ func (m *CreateJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_CreateJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2602,7 +2603,7 @@ func (m *CreateJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_CreateJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2643,7 +2644,7 @@ func (m *RemoveJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RemoveJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2690,7 +2691,7 @@ func (m *RemoveJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RemoveJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2732,7 +2733,7 @@ func (m *ExecuteJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ExecuteJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2787,7 +2788,7 @@ func (m *ExecuteJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ExecuteJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2834,7 +2835,7 @@ func (m *AddScheduleGroupRuleReq) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_AddScheduleGroupRuleReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2880,7 +2881,7 @@ func (m *AddScheduleGroupRuleRsp) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_AddScheduleGroupRuleRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2919,7 +2920,7 @@ func (m *GetScheduleGroupRuleReq) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_GetScheduleGroupRuleReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2959,7 +2960,7 @@ func (m *GetScheduleGroupRuleRsp) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_GetScheduleGroupRuleRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3013,7 +3014,7 @@ func (m *EventNotify) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_EventNotify.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3105,7 +3106,7 @@ func (m *InitEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_InitEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3170,7 +3171,7 @@ func (m *ShardEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_ShardEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3239,7 +3240,7 @@ func (m *StoreEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_StoreEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3288,7 +3289,7 @@ func (m *ConfigChange) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ConfigChange.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3343,7 +3344,7 @@ func (m *TransferLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_TransferLeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3392,7 +3393,7 @@ func (m *ConfigChangeV2) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_ConfigChangeV2.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3441,7 +3442,7 @@ func (m *Merge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Merge.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3490,7 +3491,7 @@ func (m *SplitShard) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_SplitShard.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3547,7 +3548,7 @@ func (m *LabelConstraint) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_LabelConstraint.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3628,7 +3629,7 @@ func (m *PlacementRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_PlacementRule.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3748,7 +3749,7 @@ func (m *RequestBatchHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_RequestBatchHeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3810,7 +3811,7 @@ func (m *ResponseBatchHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ResponseBatchHeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3867,7 +3868,7 @@ func (m *RequestBatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RequestBatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3923,7 +3924,7 @@ func (m *ResponseBatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ResponseBatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4000,7 +4001,7 @@ func (m *Request) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Request.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4170,7 +4171,7 @@ func (m *Range) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Range.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4237,7 +4238,7 @@ func (m *Response) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Response.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4363,7 +4364,7 @@ func (m *ConfigChangeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ConfigChangeRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4418,7 +4419,7 @@ func (m *ConfigChangeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_ConfigChangeResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4466,7 +4467,7 @@ func (m *CompactLogRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_CompactLogRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4513,7 +4514,7 @@ func (m *CompactLogResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CompactLogResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4554,7 +4555,7 @@ func (m *TransferLeaderRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_TransferLeaderRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4600,7 +4601,7 @@ func (m *TransferLeaderResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_TransferLeaderResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4645,7 +4646,7 @@ func (m *BatchSplitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_BatchSplitRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4706,7 +4707,7 @@ func (m *SplitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_SplitRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4774,7 +4775,7 @@ func (m *BatchSplitResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_BatchSplitResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4821,7 +4822,7 @@ func (m *UpdateMetadataRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_UpdateMetadataRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4867,7 +4868,7 @@ func (m *UpdateMetadataResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_UpdateMetadataResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4908,7 +4909,7 @@ func (m *UpdateLabelsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_UpdateLabelsRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -4961,7 +4962,7 @@ func (m *UpdateLabelsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_UpdateLabelsResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5002,7 +5003,7 @@ func (m *UpdateTxnRecordRequest) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_UpdateTxnRecordRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5050,7 +5051,7 @@ func (m *UpdateTxnRecordResponse) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_UpdateTxnRecordResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5099,7 +5100,7 @@ func (m *DeleteTxnRecordRequest) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_DeleteTxnRecordRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5153,7 +5154,7 @@ func (m *DeleteTxnRecordResponse) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_DeleteTxnRecordResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5195,7 +5196,7 @@ func (m *CommitTxnWriteDataRequest) XXX_Marshal(b []byte, deterministic bool) ([
 		return xxx_messageInfo_CommitTxnWriteDataRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5249,7 +5250,7 @@ func (m *CommitTxnWriteDataResponse) XXX_Marshal(b []byte, deterministic bool) (
 		return xxx_messageInfo_CommitTxnWriteDataResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5291,7 +5292,7 @@ func (m *RollbackTxnWriteDataRequest) XXX_Marshal(b []byte, deterministic bool) 
 		return xxx_messageInfo_RollbackTxnWriteDataRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5345,7 +5346,7 @@ func (m *RollbackTxnWriteDataResponse) XXX_Marshal(b []byte, deterministic bool)
 		return xxx_messageInfo_RollbackTxnWriteDataResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5386,7 +5387,7 @@ func (m *CleanTxnMVCCDataRequest) XXX_Marshal(b []byte, deterministic bool) ([]b
 		return xxx_messageInfo_CleanTxnMVCCDataRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5433,7 +5434,7 @@ func (m *CleanTxnMVCCDataResponse) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_CleanTxnMVCCDataResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5475,7 +5476,7 @@ func (m *KVSetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_KVSetRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5529,7 +5530,7 @@ func (m *KVSetResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_KVSetResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5571,7 +5572,7 @@ func (m *KVBatchSetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_KVBatchSetRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5625,7 +5626,7 @@ func (m *KVBatchSetResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_KVBatchSetResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5666,7 +5667,7 @@ func (m *KVGetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_KVGetRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5714,7 +5715,7 @@ func (m *KVGetResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_KVGetResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5766,7 +5767,7 @@ func (m *KVBatchGetRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_KVBatchGetRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5822,7 +5823,7 @@ func (m *KVBatchGetResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_KVBatchGetResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5877,7 +5878,7 @@ func (m *KVDeleteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_KVDeleteRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5924,7 +5925,7 @@ func (m *KVDeleteResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_KVDeleteResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -5965,7 +5966,7 @@ func (m *KVBatchDeleteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_KVBatchDeleteRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6012,7 +6013,7 @@ func (m *KVBatchDeleteResponse) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_KVBatchDeleteResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6056,7 +6057,7 @@ func (m *KVRangeDeleteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_KVRangeDeleteRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6110,7 +6111,7 @@ func (m *KVRangeDeleteResponse) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_KVRangeDeleteResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6162,7 +6163,7 @@ func (m *KVScanRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_KVScanRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6254,7 +6255,7 @@ func (m *KVScanResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_KVScanResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6330,7 +6331,7 @@ func (m *KVBatchMixedWriteRequest) XXX_Marshal(b []byte, deterministic bool) ([]
 		return xxx_messageInfo_KVBatchMixedWriteRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6378,7 +6379,7 @@ func (m *KVBatchMixedWriteResponse) XXX_Marshal(b []byte, deterministic bool) ([
 		return xxx_messageInfo_KVBatchMixedWriteResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6429,7 +6430,7 @@ func (m *KVMixedWriteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_KVMixedWriteRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6501,7 +6502,7 @@ func (m *KVMixedWriteResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_KVMixedWriteResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -6934,7 +6935,7 @@ var fileDescriptor_25e491924c678914 = []byte{
 func (m *ProphetRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -6942,211 +6943,257 @@ func (m *ProphetRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ProphetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.GetScheduleGroupRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xba
+	{
+		size, err := m.AddScheduleGroupRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xb2
+	{
+		size, err := m.ExecuteJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xaa
+	{
+		size, err := m.RemoveJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xa2
+	{
+		size, err := m.CreateJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x9a
+	{
+		size, err := m.GetAppliedRules.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x92
+	{
+		size, err := m.PutPlacementRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x8a
+	{
+		size, err := m.CheckShardState.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x82
+	{
+		size, err := m.RemoveShards.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x7a
+	{
+		size, err := m.CreateShards.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x72
+	{
+		size, err := m.CreateWatcher.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x6a
+	{
+		size, err := m.GetDestroying.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x62
+	{
+		size, err := m.ReportDestroyed.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x5a
+	{
+		size, err := m.CreateDestroying.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x52
+	{
+		size, err := m.AskBatchSplit.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x4a
+	{
+		size, err := m.AllocID.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x42
+	{
+		size, err := m.GetStore.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x3a
+	{
+		size, err := m.PutStore.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x32
+	{
+		size, err := m.StoreHeartbeat.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	{
+		size, err := m.ShardHeartbeat.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	if m.Type != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x18
 	}
 	if m.StoreID != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreID))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.Type != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
 	}
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardHeartbeat.Size()))
-	n1, err := m.ShardHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n1
-	dAtA[i] = 0x2a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreHeartbeat.Size()))
-	n2, err := m.StoreHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n2
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutStore.Size()))
-	n3, err := m.PutStore.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n3
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetStore.Size()))
-	n4, err := m.GetStore.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n4
-	dAtA[i] = 0x42
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n5, err := m.AllocID.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n5
-	dAtA[i] = 0x4a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n6, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n6
-	dAtA[i] = 0x52
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestroying.Size()))
-	n7, err := m.CreateDestroying.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n7
-	dAtA[i] = 0x5a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestroyed.Size()))
-	n8, err := m.ReportDestroyed.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n8
-	dAtA[i] = 0x62
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestroying.Size()))
-	n9, err := m.GetDestroying.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n9
-	dAtA[i] = 0x6a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateWatcher.Size()))
-	n10, err := m.CreateWatcher.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n10
-	dAtA[i] = 0x72
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateShards.Size()))
-	n11, err := m.CreateShards.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n11
-	dAtA[i] = 0x7a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveShards.Size()))
-	n12, err := m.RemoveShards.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n12
-	dAtA[i] = 0x82
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckShardState.Size()))
-	n13, err := m.CheckShardState.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n13
-	dAtA[i] = 0x8a
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
-	n14, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n14
-	dAtA[i] = 0x92
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
-	n15, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n15
-	dAtA[i] = 0x9a
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
-	n16, err := m.CreateJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n16
-	dAtA[i] = 0xa2
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
-	n17, err := m.RemoveJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n17
-	dAtA[i] = 0xaa
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
-	n18, err := m.ExecuteJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n18
-	dAtA[i] = 0xb2
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AddScheduleGroupRule.Size()))
-	n19, err := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n19
-	dAtA[i] = 0xba
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetScheduleGroupRule.Size()))
-	n20, err := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n20
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ProphetResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7154,220 +7201,268 @@ func (m *ProphetResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ProphetResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Type != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+	{
+		size, err := m.GetScheduleGroupRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xc2
+	{
+		size, err := m.AddScheduleGroupRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xba
+	{
+		size, err := m.ExecuteJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xb2
+	{
+		size, err := m.RemoveJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xaa
+	{
+		size, err := m.CreateJob.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0xa2
+	{
+		size, err := m.GetAppliedRules.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x9a
+	{
+		size, err := m.PutPlacementRule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x92
+	{
+		size, err := m.CheckShardState.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x8a
+	{
+		size, err := m.RemoveShards.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x82
+	{
+		size, err := m.CreateShards.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x7a
+	{
+		size, err := m.Event.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x72
+	{
+		size, err := m.GetDestroying.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x6a
+	{
+		size, err := m.ReportDestroyed.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x62
+	{
+		size, err := m.CreateDestroying.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x5a
+	{
+		size, err := m.AskBatchSplit.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x52
+	{
+		size, err := m.AllocID.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x4a
+	{
+		size, err := m.GetStore.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x42
+	{
+		size, err := m.PutStore.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x3a
+	{
+		size, err := m.StoreHeartbeat.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x32
+	{
+		size, err := m.ShardHeartbeat.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	if len(m.Leader) > 0 {
+		i -= len(m.Leader)
+		copy(dAtA[i:], m.Leader)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Leader)))
+		i--
+		dAtA[i] = 0x22
 	}
 	if len(m.Error) > 0 {
-		dAtA[i] = 0x1a
-		i++
+		i -= len(m.Error)
+		copy(dAtA[i:], m.Error)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Error)))
-		i += copy(dAtA[i:], m.Error)
+		i--
+		dAtA[i] = 0x1a
 	}
-	if len(m.Leader) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Leader)))
-		i += copy(dAtA[i:], m.Leader)
+	if m.Type != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
 	}
-	dAtA[i] = 0x2a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardHeartbeat.Size()))
-	n21, err := m.ShardHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
 	}
-	i += n21
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreHeartbeat.Size()))
-	n22, err := m.StoreHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n22
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutStore.Size()))
-	n23, err := m.PutStore.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n23
-	dAtA[i] = 0x42
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetStore.Size()))
-	n24, err := m.GetStore.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n24
-	dAtA[i] = 0x4a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n25, err := m.AllocID.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n25
-	dAtA[i] = 0x52
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n26, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n26
-	dAtA[i] = 0x5a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestroying.Size()))
-	n27, err := m.CreateDestroying.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n27
-	dAtA[i] = 0x62
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestroyed.Size()))
-	n28, err := m.ReportDestroyed.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n28
-	dAtA[i] = 0x6a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestroying.Size()))
-	n29, err := m.GetDestroying.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n29
-	dAtA[i] = 0x72
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
-	n30, err := m.Event.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n30
-	dAtA[i] = 0x7a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateShards.Size()))
-	n31, err := m.CreateShards.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n31
-	dAtA[i] = 0x82
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveShards.Size()))
-	n32, err := m.RemoveShards.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n32
-	dAtA[i] = 0x8a
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckShardState.Size()))
-	n33, err := m.CheckShardState.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n33
-	dAtA[i] = 0x92
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
-	n34, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n34
-	dAtA[i] = 0x9a
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
-	n35, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n35
-	dAtA[i] = 0xa2
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
-	n36, err := m.CreateJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n36
-	dAtA[i] = 0xaa
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
-	n37, err := m.RemoveJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n37
-	dAtA[i] = 0xb2
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
-	n38, err := m.ExecuteJob.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n38
-	dAtA[i] = 0xba
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AddScheduleGroupRule.Size()))
-	n39, err := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n39
-	dAtA[i] = 0xc2
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetScheduleGroupRule.Size()))
-	n40, err := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n40
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ShardHeartbeatReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7375,84 +7470,100 @@ func (m *ShardHeartbeatReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ShardHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ShardHeartbeatReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.StoreID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Shard) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Shard)))
-		i += copy(dAtA[i:], m.Shard)
+	if len(m.GroupKey) > 0 {
+		i -= len(m.GroupKey)
+		copy(dAtA[i:], m.GroupKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupKey)))
+		i--
+		dAtA[i] = 0x42
 	}
-	if m.Term != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Term))
-	}
-	if m.Leader != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader.Size()))
-		n41, err := m.Leader.MarshalTo(dAtA[i:])
+	{
+		size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
-		i += n41
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x3a
+	if len(m.PendingReplicas) > 0 {
+		for iNdEx := len(m.PendingReplicas) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.PendingReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x32
+		}
 	}
 	if len(m.DownReplicas) > 0 {
-		for _, msg := range m.DownReplicas {
+		for iNdEx := len(m.DownReplicas) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.DownReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			}
+			i--
 			dAtA[i] = 0x2a
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
+		}
+	}
+	if m.Leader != nil {
+		{
+			size, err := m.Leader.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
-			i += n
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
 		}
+		i--
+		dAtA[i] = 0x22
 	}
-	if len(m.PendingReplicas) > 0 {
-		for _, msg := range m.PendingReplicas {
-			dAtA[i] = 0x32
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if m.Term != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Term))
+		i--
+		dAtA[i] = 0x18
 	}
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n42, err := m.Stats.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if len(m.Shard) > 0 {
+		i -= len(m.Shard)
+		copy(dAtA[i:], m.Shard)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Shard)))
+		i--
+		dAtA[i] = 0x12
 	}
-	i += n42
-	if len(m.GroupKey) > 0 {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupKey)))
-		i += copy(dAtA[i:], m.GroupKey)
+	if m.StoreID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreID))
+		i--
+		dAtA[i] = 0x8
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ShardHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7460,103 +7571,123 @@ func (m *ShardHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ShardHeartbeatRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ShardID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardEpoch.Size()))
-	n43, err := m.ShardEpoch.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n43
-	if m.TargetReplica != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TargetReplica.Size()))
-		n44, err := m.TargetReplica.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n44
-	}
-	if m.ConfigChange != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChange.Size()))
-		n45, err := m.ConfigChange.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n45
-	}
-	if m.TransferLeader != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
-		n46, err := m.TransferLeader.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n46
-	}
-	if m.Merge != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
-		n47, err := m.Merge.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n47
-	}
-	if m.SplitShard != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitShard.Size()))
-		n48, err := m.SplitShard.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n48
-	}
-	if m.ConfigChangeV2 != nil {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChangeV2.Size()))
-		n49, err := m.ConfigChangeV2.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n49
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.DestroyDirectly {
-		dAtA[i] = 0x48
-		i++
+		i--
 		if m.DestroyDirectly {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x48
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ConfigChangeV2 != nil {
+		{
+			size, err := m.ConfigChangeV2.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x42
 	}
-	return i, nil
+	if m.SplitShard != nil {
+		{
+			size, err := m.SplitShard.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.Merge != nil {
+		{
+			size, err := m.Merge.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
+	}
+	if m.TransferLeader != nil {
+		{
+			size, err := m.TransferLeader.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.ConfigChange != nil {
+		{
+			size, err := m.ConfigChange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.TargetReplica != nil {
+		{
+			size, err := m.TargetReplica.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	{
+		size, err := m.ShardEpoch.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if m.ShardID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PutStoreReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7564,26 +7695,33 @@ func (m *PutStoreReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutStoreReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutStoreReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Store) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Store)))
-		i += copy(dAtA[i:], m.Store)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Store) > 0 {
+		i -= len(m.Store)
+		copy(dAtA[i:], m.Store)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Store)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PutStoreRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7591,26 +7729,33 @@ func (m *PutStoreRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutStoreRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutStoreRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.DestroyShards) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.DestroyShards)))
-		i += copy(dAtA[i:], m.DestroyShards)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.DestroyShards) > 0 {
+		i -= len(m.DestroyShards)
+		copy(dAtA[i:], m.DestroyShards)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.DestroyShards)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *StoreHeartbeatReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7618,34 +7763,43 @@ func (m *StoreHeartbeatReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StoreHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StoreHeartbeatReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n50, err := m.Stats.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n50
-	if len(m.Data) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *StoreHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7653,26 +7807,33 @@ func (m *StoreHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StoreHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StoreHeartbeatRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetStoreReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7680,25 +7841,31 @@ func (m *GetStoreReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetStoreReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetStoreReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetStoreRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7706,36 +7873,45 @@ func (m *GetStoreRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetStoreRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetStoreRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Stats != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-		n51, err := m.Stats.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
 		}
-		i += n51
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *AllocIDReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7743,20 +7919,26 @@ func (m *AllocIDReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AllocIDReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AllocIDReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *AllocIDRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7764,25 +7946,31 @@ func (m *AllocIDRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AllocIDRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AllocIDRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *AskBatchSplitReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7790,31 +7978,38 @@ func (m *AskBatchSplitReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AskBatchSplitReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AskBatchSplitReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Count != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *AskBatchSplitRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7822,32 +8017,40 @@ func (m *AskBatchSplitRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AskBatchSplitRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AskBatchSplitRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.SplitIDs) > 0 {
-		for _, msg := range m.SplitIDs {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.SplitIDs) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.SplitIDs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateDestroyingReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7855,19 +8058,28 @@ func (m *CreateDestroyingReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateDestroyingReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateDestroyingReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Index != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+	if m.RemoveData {
+		i--
+		if m.RemoveData {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
 	}
 	if len(m.Replicas) > 0 {
 		dAtA53 := make([]byte, len(m.Replicas)*10)
@@ -7881,31 +8093,29 @@ func (m *CreateDestroyingReq) MarshalTo(dAtA []byte) (int, error) {
 			dAtA53[j52] = uint8(num)
 			j52++
 		}
-		dAtA[i] = 0x1a
-		i++
+		i -= j52
+		copy(dAtA[i:], dAtA53[:j52])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j52))
-		i += copy(dAtA[i:], dAtA53[:j52])
+		i--
+		dAtA[i] = 0x1a
 	}
-	if m.RemoveData {
-		dAtA[i] = 0x20
-		i++
-		if m.RemoveData {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i++
+	if m.Index != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateDestroyingRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7913,25 +8123,31 @@ func (m *CreateDestroyingRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateDestroyingRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateDestroyingRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.State != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.State != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetDestroyingReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7939,25 +8155,31 @@ func (m *GetDestroyingReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDestroyingReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDestroyingReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetDestroyingRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7965,30 +8187,38 @@ func (m *GetDestroyingRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetDestroyingRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetDestroyingRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Status != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Status.Size()))
-		n54, err := m.Status.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n54
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.Status != nil {
+		{
+			size, err := m.Status.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ReportDestroyedReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -7996,30 +8226,36 @@ func (m *ReportDestroyedReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReportDestroyedReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReportDestroyedReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.ReplicaID != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ReplicaID))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ReportDestroyedRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8027,25 +8263,31 @@ func (m *ReportDestroyedRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReportDestroyedRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ReportDestroyedRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.State != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.State != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *SplitID) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8053,14 +8295,18 @@ func (m *SplitID) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitID) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SplitID) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.NewID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.NewReplicaIDs) > 0 {
 		dAtA56 := make([]byte, len(m.NewReplicaIDs)*10)
@@ -8074,21 +8320,24 @@ func (m *SplitID) MarshalTo(dAtA []byte) (int, error) {
 			dAtA56[j55] = uint8(num)
 			j55++
 		}
-		dAtA[i] = 0x12
-		i++
+		i -= j55
+		copy(dAtA[i:], dAtA56[:j55])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j55))
-		i += copy(dAtA[i:], dAtA56[:j55])
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.NewID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateWatcherReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8096,25 +8345,31 @@ func (m *CreateWatcherReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateWatcherReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateWatcherReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Flag != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Flag))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.Flag != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Flag))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateShardsReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8122,17 +8377,18 @@ func (m *CreateShardsReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateShardsReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateShardsReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Shards) > 0 {
-		for _, b := range m.Shards {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.LeastReplicas) > 0 {
 		dAtA58 := make([]byte, len(m.LeastReplicas)*10)
@@ -8146,21 +8402,28 @@ func (m *CreateShardsReq) MarshalTo(dAtA []byte) (int, error) {
 			dAtA58[j57] = uint8(num)
 			j57++
 		}
-		dAtA[i] = 0x12
-		i++
+		i -= j57
+		copy(dAtA[i:], dAtA58[:j57])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j57))
-		i += copy(dAtA[i:], dAtA58[:j57])
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Shards) > 0 {
+		for iNdEx := len(m.Shards) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Shards[iNdEx])
+			copy(dAtA[i:], m.Shards[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Shards[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateShardsRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8168,20 +8431,26 @@ func (m *CreateShardsRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateShardsRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateShardsRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveShardsReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8189,10 +8458,19 @@ func (m *RemoveShardsReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveShardsReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveShardsReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.IDs) > 0 {
 		dAtA60 := make([]byte, len(m.IDs)*10)
 		var j59 int
@@ -8205,21 +8483,19 @@ func (m *RemoveShardsReq) MarshalTo(dAtA []byte) (int, error) {
 			dAtA60[j59] = uint8(num)
 			j59++
 		}
-		dAtA[i] = 0xa
-		i++
+		i -= j59
+		copy(dAtA[i:], dAtA60[:j59])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j59))
-		i += copy(dAtA[i:], dAtA60[:j59])
+		i--
+		dAtA[i] = 0xa
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveShardsRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8227,20 +8503,26 @@ func (m *RemoveShardsRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveShardsRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveShardsRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CheckShardStateReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8248,26 +8530,33 @@ func (m *CheckShardStateReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CheckShardStateReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CheckShardStateReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.IDs) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IDs)))
-		i += copy(dAtA[i:], m.IDs)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.IDs) > 0 {
+		i -= len(m.IDs)
+		copy(dAtA[i:], m.IDs)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IDs)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CheckShardStateRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8275,32 +8564,40 @@ func (m *CheckShardStateRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CheckShardStateRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CheckShardStateRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Destroyed) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Destroyed)))
-		i += copy(dAtA[i:], m.Destroyed)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Destroying) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Destroying)
+		copy(dAtA[i:], m.Destroying)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Destroying)))
-		i += copy(dAtA[i:], m.Destroying)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Destroyed) > 0 {
+		i -= len(m.Destroyed)
+		copy(dAtA[i:], m.Destroyed)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Destroyed)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *PutPlacementRuleReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8308,28 +8605,36 @@ func (m *PutPlacementRuleReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutPlacementRuleReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutPlacementRuleReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
-	n61, err := m.Rule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n61
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Rule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *PutPlacementRuleRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8337,20 +8642,26 @@ func (m *PutPlacementRuleRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutPlacementRuleRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PutPlacementRuleRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetAppliedRulesReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8358,25 +8669,31 @@ func (m *GetAppliedRulesReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetAppliedRulesReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetAppliedRulesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ShardID != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.ShardID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *GetAppliedRulesRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8384,32 +8701,40 @@ func (m *GetAppliedRulesRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetAppliedRulesRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetAppliedRulesRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Rules) > 0 {
-		for _, msg := range m.Rules {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8417,28 +8742,36 @@ func (m *CreateJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateJobReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n62, err := m.Job.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n62
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *CreateJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8446,20 +8779,26 @@ func (m *CreateJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CreateJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8467,28 +8806,36 @@ func (m *RemoveJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveJobReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n63, err := m.Job.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n63
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8496,20 +8843,26 @@ func (m *RemoveJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ExecuteJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8517,34 +8870,43 @@ func (m *ExecuteJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ExecuteJobReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ExecuteJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n64, err := m.Job.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n64
-	if len(m.Data) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *ExecuteJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8552,26 +8914,33 @@ func (m *ExecuteJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ExecuteJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ExecuteJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *AddScheduleGroupRuleReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8579,28 +8948,36 @@ func (m *AddScheduleGroupRuleReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AddScheduleGroupRuleReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddScheduleGroupRuleReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
-	n65, err := m.Rule.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n65
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Rule.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *AddScheduleGroupRuleRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8608,20 +8985,26 @@ func (m *AddScheduleGroupRuleRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AddScheduleGroupRuleRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddScheduleGroupRuleRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetScheduleGroupRuleReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8629,20 +9012,26 @@ func (m *GetScheduleGroupRuleReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetScheduleGroupRuleReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetScheduleGroupRuleReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *GetScheduleGroupRuleRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8650,32 +9039,40 @@ func (m *GetScheduleGroupRuleRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetScheduleGroupRuleRsp) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *GetScheduleGroupRuleRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Rules) > 0 {
-		for _, msg := range m.Rules {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *EventNotify) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8683,80 +9080,96 @@ func (m *EventNotify) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *EventNotify) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Seq != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Seq))
-	}
-	if m.Type != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
-	}
-	if m.InitEvent != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.InitEvent.Size()))
-		n66, err := m.InitEvent.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n66
-	}
-	if m.ShardEvent != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardEvent.Size()))
-		n67, err := m.ShardEvent.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n67
-	}
-	if m.StoreEvent != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreEvent.Size()))
-		n68, err := m.StoreEvent.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n68
-	}
-	if m.ShardStatsEvent != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardStatsEvent.Size()))
-		n69, err := m.ShardStatsEvent.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n69
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.StoreStatsEvent != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreStatsEvent.Size()))
-		n70, err := m.StoreStatsEvent.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		{
+			size, err := m.StoreStatsEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
 		}
-		i += n70
+		i--
+		dAtA[i] = 0x3a
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ShardStatsEvent != nil {
+		{
+			size, err := m.ShardStatsEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x32
 	}
-	return i, nil
+	if m.StoreEvent != nil {
+		{
+			size, err := m.StoreEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.ShardEvent != nil {
+		{
+			size, err := m.ShardEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.InitEvent != nil {
+		{
+			size, err := m.InitEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Type != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Seq != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Seq))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *InitEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8764,16 +9177,26 @@ func (m *InitEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *InitEventData) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *InitEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Shards) > 0 {
-		for _, b := range m.Shards {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Stores) > 0 {
+		for iNdEx := len(m.Stores) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Stores[iNdEx])
+			copy(dAtA[i:], m.Stores[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Stores[iNdEx])))
+			i--
+			dAtA[i] = 0x1a
 		}
 	}
 	if len(m.Leaders) > 0 {
@@ -8788,29 +9211,28 @@ func (m *InitEventData) MarshalTo(dAtA []byte) (int, error) {
 			dAtA72[j71] = uint8(num)
 			j71++
 		}
-		dAtA[i] = 0x12
-		i++
+		i -= j71
+		copy(dAtA[i:], dAtA72[:j71])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j71))
-		i += copy(dAtA[i:], dAtA72[:j71])
+		i--
+		dAtA[i] = 0x12
 	}
-	if len(m.Stores) > 0 {
-		for _, b := range m.Stores {
-			dAtA[i] = 0x1a
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
+	if len(m.Shards) > 0 {
+		for iNdEx := len(m.Shards) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Shards[iNdEx])
+			copy(dAtA[i:], m.Shards[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Shards[iNdEx])))
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ShardEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8818,51 +9240,58 @@ func (m *ShardEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ShardEventData) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ShardEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
-	if m.Leader != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader))
-	}
-	if m.Removed {
-		dAtA[i] = 0x18
-		i++
-		if m.Removed {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i++
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Create {
-		dAtA[i] = 0x20
-		i++
+		i--
 		if m.Create {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x20
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Removed {
+		i--
+		if m.Removed {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
 	}
-	return i, nil
+	if m.Leader != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *StoreEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8870,26 +9299,33 @@ func (m *StoreEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StoreEventData) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *StoreEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Data) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i += copy(dAtA[i:], m.Data)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Data) > 0 {
+		i -= len(m.Data)
+		copy(dAtA[i:], m.Data)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ConfigChange) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8897,33 +9333,41 @@ func (m *ConfigChange) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChange) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ConfigChange) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n73, err := m.Replica.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n73
-	if m.ChangeType != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.ChangeType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
+		i--
+		dAtA[i] = 0x10
+	}
+	{
+		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *TransferLeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8931,28 +9375,36 @@ func (m *TransferLeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeader) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransferLeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n74, err := m.Replica.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n74
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *ConfigChangeV2) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8960,32 +9412,40 @@ func (m *ConfigChangeV2) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeV2) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ConfigChangeV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Changes) > 0 {
-		for _, msg := range m.Changes {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Changes) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Changes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Merge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -8993,26 +9453,33 @@ func (m *Merge) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Merge) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Merge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Target) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Target)))
-		i += copy(dAtA[i:], m.Target)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Target) > 0 {
+		i -= len(m.Target)
+		copy(dAtA[i:], m.Target)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Target)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *SplitShard) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9020,33 +9487,40 @@ func (m *SplitShard) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitShard) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SplitShard) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Policy != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Policy))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Keys) > 0 {
-		for _, b := range m.Keys {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Policy != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Policy))
+		i--
+		dAtA[i] = 0x8
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *LabelConstraint) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9054,46 +9528,47 @@ func (m *LabelConstraint) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *LabelConstraint) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *LabelConstraint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
-	}
-	if m.Op != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Op))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Values) > 0 {
-		for _, s := range m.Values {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
 			dAtA[i] = 0x1a
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Op != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Op))
+		i--
+		dAtA[i] = 0x10
 	}
-	return i, nil
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *PlacementRule) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9101,102 +9576,109 @@ func (m *PlacementRule) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PlacementRule) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *PlacementRule) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i += copy(dAtA[i:], m.ID)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.GroupID) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupID)))
-		i += copy(dAtA[i:], m.GroupID)
+	if len(m.IsolationLevel) > 0 {
+		i -= len(m.IsolationLevel)
+		copy(dAtA[i:], m.IsolationLevel)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IsolationLevel)))
+		i--
+		dAtA[i] = 0x5a
 	}
-	if m.Index != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+	if len(m.LocationLabels) > 0 {
+		for iNdEx := len(m.LocationLabels) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.LocationLabels[iNdEx])
+			copy(dAtA[i:], m.LocationLabels[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.LocationLabels[iNdEx])))
+			i--
+			dAtA[i] = 0x52
+		}
+	}
+	if len(m.LabelConstraints) > 0 {
+		for iNdEx := len(m.LabelConstraints) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.LabelConstraints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x4a
+		}
+	}
+	if m.Count != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.Role != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Role))
+		i--
+		dAtA[i] = 0x38
+	}
+	if len(m.EndKey) > 0 {
+		i -= len(m.EndKey)
+		copy(dAtA[i:], m.EndKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.EndKey)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.StartKey) > 0 {
+		i -= len(m.StartKey)
+		copy(dAtA[i:], m.StartKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.StartKey)))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if m.Override {
-		dAtA[i] = 0x20
-		i++
+		i--
 		if m.Override {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x20
 	}
-	if len(m.StartKey) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.StartKey)))
-		i += copy(dAtA[i:], m.StartKey)
+	if m.Index != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+		i--
+		dAtA[i] = 0x18
 	}
-	if len(m.EndKey) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.EndKey)))
-		i += copy(dAtA[i:], m.EndKey)
+	if len(m.GroupID) > 0 {
+		i -= len(m.GroupID)
+		copy(dAtA[i:], m.GroupID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupID)))
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.Role != 0 {
-		dAtA[i] = 0x38
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Role))
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
 	}
-	if m.Count != 0 {
-		dAtA[i] = 0x40
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
-	}
-	if len(m.LabelConstraints) > 0 {
-		for _, msg := range m.LabelConstraints {
-			dAtA[i] = 0x4a
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	if len(m.LocationLabels) > 0 {
-		for _, s := range m.LocationLabels {
-			dAtA[i] = 0x52
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
-		}
-	}
-	if len(m.IsolationLevel) > 0 {
-		dAtA[i] = 0x5a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IsolationLevel)))
-		i += copy(dAtA[i:], m.IsolationLevel)
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RequestBatchHeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9204,39 +9686,48 @@ func (m *RequestBatchHeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RequestBatchHeader) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RequestBatchHeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i += copy(dAtA[i:], m.ID)
-	}
-	if m.ShardID != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
-	}
-	dAtA[i] = 0x1a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n75, err := m.Replica.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n75
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	if m.ShardID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardID))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ResponseBatchHeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9244,34 +9735,43 @@ func (m *ResponseBatchHeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResponseBatchHeader) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ResponseBatchHeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i += copy(dAtA[i:], m.ID)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Error.Size()))
-	n76, err := m.Error.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n76
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Error.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *RequestBatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9279,40 +9779,50 @@ func (m *RequestBatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RequestBatch) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RequestBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Header.Size()))
-	n77, err := m.Header.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	i += n77
 	if len(m.Requests) > 0 {
-		for _, msg := range m.Requests {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Requests[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	{
+		size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	return i, nil
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *ResponseBatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9320,40 +9830,50 @@ func (m *ResponseBatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResponseBatch) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ResponseBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Header.Size()))
-	n78, err := m.Header.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	i += n78
 	if len(m.Responses) > 0 {
-		for _, msg := range m.Responses {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Responses) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Responses[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	{
+		size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	return i, nil
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *Request) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9361,152 +9881,177 @@ func (m *Request) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Request) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Request) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i += copy(dAtA[i:], m.ID)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.Group != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Group))
+	{
+		size, err := m.CleanTxnMVCCData.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if m.Type != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x92
+	{
+		size, err := m.RollbackTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if m.CustomType != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CustomType))
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x8a
+	{
+		size, err := m.CommitTxnWriteData.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if len(m.Key) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
+	i--
+	dAtA[i] = 0x1
+	i--
+	dAtA[i] = 0x82
+	{
+		size, err := m.DeleteTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if len(m.Cmd) > 0 {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Cmd)))
-		i += copy(dAtA[i:], m.Cmd)
+	i--
+	dAtA[i] = 0x7a
+	{
+		size, err := m.UpdateTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if m.PID != 0 {
-		dAtA[i] = 0x38
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.PID))
+	i--
+	dAtA[i] = 0x72
+	if m.TxnBatchRequest != nil {
+		{
+			size, err := m.TxnBatchRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x6a
 	}
-	if m.ToShard != 0 {
-		dAtA[i] = 0x40
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ToShard))
+	if m.ReplicaSelectPolicy != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ReplicaSelectPolicy))
+		i--
+		dAtA[i] = 0x60
 	}
+	if m.KeysRange != nil {
+		{
+			size, err := m.KeysRange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5a
+	}
+	{
+		size, err := m.Epoch.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x52
 	if m.IgnoreEpochCheck {
-		dAtA[i] = 0x48
-		i++
+		i--
 		if m.IgnoreEpochCheck {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x48
 	}
-	dAtA[i] = 0x52
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Epoch.Size()))
-	n79, err := m.Epoch.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.ToShard != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ToShard))
+		i--
+		dAtA[i] = 0x40
 	}
-	i += n79
-	if m.KeysRange != nil {
-		dAtA[i] = 0x5a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.KeysRange.Size()))
-		n80, err := m.KeysRange.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n80
+	if m.PID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.PID))
+		i--
+		dAtA[i] = 0x38
 	}
-	if m.ReplicaSelectPolicy != 0 {
-		dAtA[i] = 0x60
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ReplicaSelectPolicy))
+	if len(m.Cmd) > 0 {
+		i -= len(m.Cmd)
+		copy(dAtA[i:], m.Cmd)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Cmd)))
+		i--
+		dAtA[i] = 0x32
 	}
-	if m.TxnBatchRequest != nil {
-		dAtA[i] = 0x6a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnBatchRequest.Size()))
-		n81, err := m.TxnBatchRequest.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n81
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0x2a
 	}
-	dAtA[i] = 0x72
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.UpdateTxnRecord.Size()))
-	n82, err := m.UpdateTxnRecord.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.CustomType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.CustomType))
+		i--
+		dAtA[i] = 0x20
 	}
-	i += n82
-	dAtA[i] = 0x7a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.DeleteTxnRecord.Size()))
-	n83, err := m.DeleteTxnRecord.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.Type != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x18
 	}
-	i += n83
-	dAtA[i] = 0x82
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CommitTxnWriteData.Size()))
-	n84, err := m.CommitTxnWriteData.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if m.Group != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Group))
+		i--
+		dAtA[i] = 0x10
 	}
-	i += n84
-	dAtA[i] = 0x8a
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RollbackTxnRecord.Size()))
-	n85, err := m.RollbackTxnRecord.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
 	}
-	i += n85
-	dAtA[i] = 0x92
-	i++
-	dAtA[i] = 0x1
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CleanTxnMVCCData.Size()))
-	n86, err := m.CleanTxnMVCCData.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n86
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Range) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9514,32 +10059,40 @@ func (m *Range) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Range) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Range) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.From) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.From)))
-		i += copy(dAtA[i:], m.From)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.To) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.To)
+		copy(dAtA[i:], m.To)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.To)))
-		i += copy(dAtA[i:], m.To)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.From) > 0 {
+		i -= len(m.From)
+		copy(dAtA[i:], m.From)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.From)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *Response) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9547,115 +10100,137 @@ func (m *Response) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Response) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.ID) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i += copy(dAtA[i:], m.ID)
-	}
-	if m.Type != 0 {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
-	}
-	if m.CustomType != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CustomType))
-	}
-	if len(m.Value) > 0 {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Value)))
-		i += copy(dAtA[i:], m.Value)
-	}
-	if m.PID != 0 {
-		dAtA[i] = 0x28
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.PID))
-	}
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Error.Size()))
-	n87, err := m.Error.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n87
-	if m.TxnBatchResponse != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnBatchResponse.Size()))
-		n88, err := m.TxnBatchResponse.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n88
-	}
-	if m.UpdateTxnRecord != nil {
-		dAtA[i] = 0x42
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.UpdateTxnRecord.Size()))
-		n89, err := m.UpdateTxnRecord.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n89
-	}
-	if m.DeleteTxnRecord != nil {
-		dAtA[i] = 0x4a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.DeleteTxnRecord.Size()))
-		n90, err := m.DeleteTxnRecord.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n90
-	}
-	if m.CommitTxnWriteData != nil {
-		dAtA[i] = 0x52
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CommitTxnWriteData.Size()))
-		n91, err := m.CommitTxnWriteData.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n91
-	}
-	if m.RollbackTxnRecord != nil {
-		dAtA[i] = 0x5a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.RollbackTxnRecord.Size()))
-		n92, err := m.RollbackTxnRecord.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n92
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.CleanTxnMVCCData != nil {
+		{
+			size, err := m.CleanTxnMVCCData.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
 		dAtA[i] = 0x62
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CleanTxnMVCCData.Size()))
-		n93, err := m.CleanTxnMVCCData.MarshalTo(dAtA[i:])
+	}
+	if m.RollbackTxnRecord != nil {
+		{
+			size, err := m.RollbackTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5a
+	}
+	if m.CommitTxnWriteData != nil {
+		{
+			size, err := m.CommitTxnWriteData.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x52
+	}
+	if m.DeleteTxnRecord != nil {
+		{
+			size, err := m.DeleteTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if m.UpdateTxnRecord != nil {
+		{
+			size, err := m.UpdateTxnRecord.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x42
+	}
+	if m.TxnBatchResponse != nil {
+		{
+			size, err := m.TxnBatchResponse.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x3a
+	}
+	{
+		size, err := m.Error.MarshalToSizedBuffer(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
-		i += n93
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	i--
+	dAtA[i] = 0x32
+	if m.PID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.PID))
+		i--
+		dAtA[i] = 0x28
 	}
-	return i, nil
+	if len(m.Value) > 0 {
+		i -= len(m.Value)
+		copy(dAtA[i:], m.Value)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Value)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.CustomType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.CustomType))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.Type != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.ID) > 0 {
+		i -= len(m.ID)
+		copy(dAtA[i:], m.ID)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ConfigChangeRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9663,33 +10238,41 @@ func (m *ConfigChangeRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ConfigChangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.ChangeType != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n94, err := m.Replica.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n94
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if m.ChangeType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *ConfigChangeResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9697,28 +10280,36 @@ func (m *ConfigChangeResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ConfigChangeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Shard.Size()))
-	n95, err := m.Shard.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n95
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Shard.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *CompactLogRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9726,25 +10317,31 @@ func (m *CompactLogRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CompactLogRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CompactLogRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.CompactIndex != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CompactIndex))
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if m.CompactIndex != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.CompactIndex))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CompactLogResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9752,20 +10349,26 @@ func (m *CompactLogResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CompactLogResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CompactLogResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *TransferLeaderRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9773,28 +10376,36 @@ func (m *TransferLeaderRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeaderRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransferLeaderRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n96, err := m.Replica.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n96
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *TransferLeaderResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9802,20 +10413,26 @@ func (m *TransferLeaderResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeaderResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *TransferLeaderResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *BatchSplitRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9823,38 +10440,47 @@ func (m *BatchSplitRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *BatchSplitRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *BatchSplitRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Requests) > 0 {
-		for _, msg := range m.Requests {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Context) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Context)
+		copy(dAtA[i:], m.Context)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Context)))
-		i += copy(dAtA[i:], m.Context)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Requests) > 0 {
+		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Requests[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *SplitRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9862,49 +10488,59 @@ func (m *SplitRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SplitRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Start) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
-		i += copy(dAtA[i:], m.Start)
-	}
-	if len(m.End) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.End)))
-		i += copy(dAtA[i:], m.End)
-	}
-	if m.NewShardID != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewShardID))
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.NewReplicas) > 0 {
-		for _, msg := range m.NewReplicas {
-			dAtA[i] = 0x22
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.NewReplicas) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.NewReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x22
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.NewShardID != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewShardID))
+		i--
+		dAtA[i] = 0x18
 	}
-	return i, nil
+	if len(m.End) > 0 {
+		i -= len(m.End)
+		copy(dAtA[i:], m.End)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.End)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Start) > 0 {
+		i -= len(m.Start)
+		copy(dAtA[i:], m.Start)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *BatchSplitResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9912,32 +10548,40 @@ func (m *BatchSplitResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *BatchSplitResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *BatchSplitResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Shards) > 0 {
-		for _, msg := range m.Shards {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Shards) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Shards[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateMetadataRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9945,28 +10589,36 @@ func (m *UpdateMetadataRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateMetadataRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateMetadataRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Metadata.Size()))
-	n97, err := m.Metadata.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n97
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateMetadataResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9974,20 +10626,26 @@ func (m *UpdateMetadataResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateMetadataResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateMetadataResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateLabelsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -9995,37 +10653,45 @@ func (m *UpdateLabelsRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateLabelsRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateLabelsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Labels) > 0 {
-		for _, msg := range m.Labels {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Policy != 0 {
-		dAtA[i] = 0x10
-		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Policy))
+		i--
+		dAtA[i] = 0x10
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Labels) > 0 {
+		for iNdEx := len(m.Labels) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Labels[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateLabelsResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10033,20 +10699,26 @@ func (m *UpdateLabelsResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateLabelsResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateLabelsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateTxnRecordRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10054,28 +10726,36 @@ func (m *UpdateTxnRecordRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateTxnRecordRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateTxnRecordRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnRecord.Size()))
-	n98, err := m.TxnRecord.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n98
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.TxnRecord.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *UpdateTxnRecordResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10083,28 +10763,36 @@ func (m *UpdateTxnRecordResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateTxnRecordResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UpdateTxnRecordResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnRecord.Size()))
-	n99, err := m.TxnRecord.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n99
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.TxnRecord.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *DeleteTxnRecordRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10112,32 +10800,40 @@ func (m *DeleteTxnRecordRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *DeleteTxnRecordRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteTxnRecordRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.TxnRecordRouteKey) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.TxnRecordRouteKey)))
-		i += copy(dAtA[i:], m.TxnRecordRouteKey)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.TxnID) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.TxnID)
+		copy(dAtA[i:], m.TxnID)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.TxnID)))
-		i += copy(dAtA[i:], m.TxnID)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.TxnRecordRouteKey) > 0 {
+		i -= len(m.TxnRecordRouteKey)
+		copy(dAtA[i:], m.TxnRecordRouteKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.TxnRecordRouteKey)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *DeleteTxnRecordResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10145,20 +10841,26 @@ func (m *DeleteTxnRecordResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *DeleteTxnRecordResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DeleteTxnRecordResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CommitTxnWriteDataRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10166,34 +10868,43 @@ func (m *CommitTxnWriteDataRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CommitTxnWriteDataRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CommitTxnWriteDataRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.OriginKey) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.OriginKey)))
-		i += copy(dAtA[i:], m.OriginKey)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CommitTS.Size()))
-	n100, err := m.CommitTS.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n100
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.CommitTS.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if len(m.OriginKey) > 0 {
+		i -= len(m.OriginKey)
+		copy(dAtA[i:], m.OriginKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.OriginKey)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *CommitTxnWriteDataResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10201,20 +10912,26 @@ func (m *CommitTxnWriteDataResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CommitTxnWriteDataResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CommitTxnWriteDataResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RollbackTxnWriteDataRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10222,34 +10939,43 @@ func (m *RollbackTxnWriteDataRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RollbackTxnWriteDataRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RollbackTxnWriteDataRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.OriginKey) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.OriginKey)))
-		i += copy(dAtA[i:], m.OriginKey)
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Timestamp.Size()))
-	n101, err := m.Timestamp.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n101
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Timestamp.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if len(m.OriginKey) > 0 {
+		i -= len(m.OriginKey)
+		copy(dAtA[i:], m.OriginKey)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.OriginKey)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *RollbackTxnWriteDataResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10257,20 +10983,26 @@ func (m *RollbackTxnWriteDataResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RollbackTxnWriteDataResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RollbackTxnWriteDataResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *CleanTxnMVCCDataRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10278,28 +11010,36 @@ func (m *CleanTxnMVCCDataRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CleanTxnMVCCDataRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CleanTxnMVCCDataRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Timestamp.Size()))
-	n102, err := m.Timestamp.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n102
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.Timestamp.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
 }
 
 func (m *CleanTxnMVCCDataResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10307,20 +11047,26 @@ func (m *CleanTxnMVCCDataResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CleanTxnMVCCDataResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *CleanTxnMVCCDataResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVSetRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10328,32 +11074,40 @@ func (m *KVSetRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVSetRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVSetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Value) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Value)
+		copy(dAtA[i:], m.Value)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Value)))
-		i += copy(dAtA[i:], m.Value)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVSetResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10361,20 +11115,26 @@ func (m *KVSetResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVSetResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVSetResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchSetRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10382,36 +11142,44 @@ func (m *KVBatchSetRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchSetRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchSetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Keys) > 0 {
-		for _, b := range m.Keys {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Values) > 0 {
-		for _, b := range m.Values {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Keys) > 0 {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchSetResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10419,20 +11187,26 @@ func (m *KVBatchSetResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchSetResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchSetResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVGetRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10440,26 +11214,33 @@ func (m *KVGetRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVGetRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVGetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVGetResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10467,26 +11248,33 @@ func (m *KVGetResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVGetResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVGetResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Value) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Value)))
-		i += copy(dAtA[i:], m.Value)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Value) > 0 {
+		i -= len(m.Value)
+		copy(dAtA[i:], m.Value)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Value)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchGetRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10494,17 +11282,18 @@ func (m *KVBatchGetRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchGetRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchGetRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Keys) > 0 {
-		for _, b := range m.Keys {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Indexes) > 0 {
 		dAtA104 := make([]byte, len(m.Indexes)*10)
@@ -10518,21 +11307,28 @@ func (m *KVBatchGetRequest) MarshalTo(dAtA []byte) (int, error) {
 			dAtA104[j103] = uint8(num)
 			j103++
 		}
-		dAtA[i] = 0x12
-		i++
+		i -= j103
+		copy(dAtA[i:], dAtA104[:j103])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j103))
-		i += copy(dAtA[i:], dAtA104[:j103])
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Keys) > 0 {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchGetResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10540,17 +11336,18 @@ func (m *KVBatchGetResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchGetResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchGetResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Values) > 0 {
-		for _, b := range m.Values {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Indexes) > 0 {
 		dAtA106 := make([]byte, len(m.Indexes)*10)
@@ -10564,21 +11361,28 @@ func (m *KVBatchGetResponse) MarshalTo(dAtA []byte) (int, error) {
 			dAtA106[j105] = uint8(num)
 			j105++
 		}
-		dAtA[i] = 0x12
-		i++
+		i -= j105
+		copy(dAtA[i:], dAtA106[:j105])
 		i = encodeVarintRpcpb(dAtA, i, uint64(j105))
-		i += copy(dAtA[i:], dAtA106[:j105])
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Values) > 0 {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVDeleteRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10586,26 +11390,33 @@ func (m *KVDeleteRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVDeleteRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVDeleteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i += copy(dAtA[i:], m.Key)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Key) > 0 {
+		i -= len(m.Key)
+		copy(dAtA[i:], m.Key)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVDeleteResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10613,20 +11424,26 @@ func (m *KVDeleteResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVDeleteResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVDeleteResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchDeleteRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10634,28 +11451,35 @@ func (m *KVBatchDeleteRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchDeleteRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchDeleteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Keys) > 0 {
-		for _, b := range m.Keys {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
 			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchDeleteResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10663,20 +11487,26 @@ func (m *KVBatchDeleteResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchDeleteResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchDeleteResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVRangeDeleteRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10684,32 +11514,40 @@ func (m *KVRangeDeleteRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVRangeDeleteRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVRangeDeleteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Start) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
-		i += copy(dAtA[i:], m.Start)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.End) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.End)
+		copy(dAtA[i:], m.End)
 		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.End)))
-		i += copy(dAtA[i:], m.End)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Start) > 0 {
+		i -= len(m.Start)
+		copy(dAtA[i:], m.Start)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVRangeDeleteResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10717,20 +11555,26 @@ func (m *KVRangeDeleteResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVRangeDeleteResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVRangeDeleteResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVScanRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10738,62 +11582,70 @@ func (m *KVScanRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVScanRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVScanRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Start) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
-		i += copy(dAtA[i:], m.Start)
-	}
-	if len(m.End) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.End)))
-		i += copy(dAtA[i:], m.End)
-	}
-	if m.Limit != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Limit))
-	}
-	if m.LimitBytes != 0 {
-		dAtA[i] = 0x20
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.LimitBytes))
-	}
-	if m.WithValue {
-		dAtA[i] = 0x28
-		i++
-		if m.WithValue {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i++
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.OnlyCount {
-		dAtA[i] = 0x30
-		i++
+		i--
 		if m.OnlyCount {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x30
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if m.WithValue {
+		i--
+		if m.WithValue {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x28
 	}
-	return i, nil
+	if m.LimitBytes != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.LimitBytes))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Limit != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Limit))
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.End) > 0 {
+		i -= len(m.End)
+		copy(dAtA[i:], m.End)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.End)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Start) > 0 {
+		i -= len(m.Start)
+		copy(dAtA[i:], m.Start)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Start)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVScanResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10801,57 +11653,66 @@ func (m *KVScanResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVScanResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVScanResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Keys) > 0 {
-		for _, b := range m.Keys {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Values) > 0 {
-		for _, b := range m.Values {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
-			i += copy(dAtA[i:], b)
-		}
-	}
-	if m.Count != 0 {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+	if len(m.ShardEnd) > 0 {
+		i -= len(m.ShardEnd)
+		copy(dAtA[i:], m.ShardEnd)
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ShardEnd)))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if m.Completed {
-		dAtA[i] = 0x20
-		i++
+		i--
 		if m.Completed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i++
+		i--
+		dAtA[i] = 0x20
 	}
-	if len(m.ShardEnd) > 0 {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ShardEnd)))
-		i += copy(dAtA[i:], m.ShardEnd)
+	if m.Count != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+		i--
+		dAtA[i] = 0x18
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Values) > 0 {
+		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Values[iNdEx])
+			copy(dAtA[i:], m.Values[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Values[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
 	}
-	return i, nil
+	if len(m.Keys) > 0 {
+		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Keys[iNdEx])
+			copy(dAtA[i:], m.Keys[iNdEx])
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchMixedWriteRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10859,32 +11720,40 @@ func (m *KVBatchMixedWriteRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchMixedWriteRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchMixedWriteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Requests) > 0 {
-		for _, msg := range m.Requests {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Requests[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0xa
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVBatchMixedWriteResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10892,32 +11761,40 @@ func (m *KVBatchMixedWriteResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVBatchMixedWriteResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVBatchMixedWriteResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
 	if len(m.Responses) > 0 {
-		for _, msg := range m.Responses {
-			dAtA[i] = 0x12
-			i++
-			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
+		for iNdEx := len(m.Responses) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Responses[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintRpcpb(dAtA, i, uint64(size))
 			}
-			i += n
+			i--
+			dAtA[i] = 0x12
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *KVMixedWriteRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10925,49 +11802,61 @@ func (m *KVMixedWriteRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVMixedWriteRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVMixedWriteRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.CmdType != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CmdType))
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Set.Size()))
-	n107, err := m.Set.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n107
-	dAtA[i] = 0x1a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Delete.Size()))
-	n108, err := m.Delete.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n108
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RangeDelete.Size()))
-	n109, err := m.RangeDelete.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n109
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.RangeDelete.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.Delete.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.Set.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if m.CmdType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.CmdType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *KVMixedWriteResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -10975,53 +11864,67 @@ func (m *KVMixedWriteResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KVMixedWriteResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *KVMixedWriteResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.CmdType != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.CmdType))
-	}
-	dAtA[i] = 0x12
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Set.Size()))
-	n110, err := m.Set.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n110
-	dAtA[i] = 0x1a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Delete.Size()))
-	n111, err := m.Delete.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n111
-	dAtA[i] = 0x22
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.RangeDelete.Size()))
-	n112, err := m.RangeDelete.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n112
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	{
+		size, err := m.RangeDelete.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	{
+		size, err := m.Delete.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x1a
+	{
+		size, err := m.Set.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintRpcpb(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	if m.CmdType != 0 {
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.CmdType))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintRpcpb(dAtA []byte, offset int, v uint64) int {
+	offset -= sovRpcpb(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *ProphetRequest) Size() (n int) {
 	if m == nil {
@@ -13091,14 +13994,7 @@ func (m *KVMixedWriteResponse) Size() (n int) {
 }
 
 func sovRpcpb(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozRpcpb(x uint64) (n int) {
 	return sovRpcpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -13855,10 +14751,7 @@ func (m *ProphetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -14671,10 +15564,7 @@ func (m *ProphetResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -14966,10 +15856,7 @@ func (m *ShardHeartbeatReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15308,10 +16195,7 @@ func (m *ShardHeartbeatRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15396,10 +16280,7 @@ func (m *PutStoreReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15484,10 +16365,7 @@ func (m *PutStoreRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15605,10 +16483,7 @@ func (m *StoreHeartbeatReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15693,10 +16568,7 @@ func (m *StoreHeartbeatRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15766,10 +16638,7 @@ func (m *GetStoreReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15890,10 +16759,7 @@ func (m *GetStoreRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -15944,10 +16810,7 @@ func (m *AllocIDReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16017,10 +16880,7 @@ func (m *AllocIDRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16124,10 +16984,7 @@ func (m *AskBatchSplitReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16212,10 +17069,7 @@ func (m *AskBatchSplitRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16400,10 +17254,7 @@ func (m *CreateDestroyingReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16473,10 +17324,7 @@ func (m *CreateDestroyingRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16546,10 +17394,7 @@ func (m *GetDestroyingReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16636,10 +17481,7 @@ func (m *GetDestroyingRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16728,10 +17570,7 @@ func (m *ReportDestroyedReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16801,10 +17640,7 @@ func (m *ReportDestroyedRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -16950,10 +17786,7 @@ func (m *SplitID) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17023,10 +17856,7 @@ func (m *CreateWatcherReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17185,10 +18015,7 @@ func (m *CreateShardsReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17239,10 +18066,7 @@ func (m *CreateShardsRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17369,10 +18193,7 @@ func (m *RemoveShardsReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17423,10 +18244,7 @@ func (m *RemoveShardsRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17511,10 +18329,7 @@ func (m *CheckShardStateReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17633,10 +18448,7 @@ func (m *CheckShardStateRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17720,10 +18532,7 @@ func (m *PutPlacementRuleReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17774,10 +18583,7 @@ func (m *PutPlacementRuleRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17847,10 +18653,7 @@ func (m *GetAppliedRulesReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -17935,10 +18738,7 @@ func (m *GetAppliedRulesRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18022,10 +18822,7 @@ func (m *CreateJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18076,10 +18873,7 @@ func (m *CreateJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18163,10 +18957,7 @@ func (m *RemoveJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18217,10 +19008,7 @@ func (m *RemoveJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18338,10 +19126,7 @@ func (m *ExecuteJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18426,10 +19211,7 @@ func (m *ExecuteJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18513,10 +19295,7 @@ func (m *AddScheduleGroupRuleReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18567,10 +19346,7 @@ func (m *AddScheduleGroupRuleRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18621,10 +19397,7 @@ func (m *GetScheduleGroupRuleReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18709,10 +19482,7 @@ func (m *GetScheduleGroupRuleRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -18981,10 +19751,7 @@ func (m *EventNotify) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19175,10 +19942,7 @@ func (m *InitEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19322,10 +20086,7 @@ func (m *ShardEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19410,10 +20171,7 @@ func (m *StoreEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19516,10 +20274,7 @@ func (m *ConfigChange) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19603,10 +20358,7 @@ func (m *TransferLeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19691,10 +20443,7 @@ func (m *ConfigChangeV2) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19779,10 +20528,7 @@ func (m *Merge) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -19884,10 +20630,7 @@ func (m *SplitShard) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20021,10 +20764,7 @@ func (m *LabelConstraint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20382,10 +21122,7 @@ func (m *PlacementRule) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20522,10 +21259,7 @@ func (m *RequestBatchHeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20643,10 +21377,7 @@ func (m *ResponseBatchHeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20764,10 +21495,7 @@ func (m *RequestBatch) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -20885,10 +21613,7 @@ func (m *ResponseBatch) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -21445,10 +22170,7 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -21567,10 +22289,7 @@ func (m *Range) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -21995,10 +22714,7 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22101,10 +22817,7 @@ func (m *ConfigChangeRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22188,10 +22901,7 @@ func (m *ConfigChangeResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22261,10 +22971,7 @@ func (m *CompactLogRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22315,10 +23022,7 @@ func (m *CompactLogResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22402,10 +23106,7 @@ func (m *TransferLeaderRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22456,10 +23157,7 @@ func (m *TransferLeaderResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22578,10 +23276,7 @@ func (m *BatchSplitRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22753,10 +23448,7 @@ func (m *SplitRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22841,10 +23533,7 @@ func (m *BatchSplitResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22928,10 +23617,7 @@ func (m *UpdateMetadataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -22982,10 +23668,7 @@ func (m *UpdateMetadataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23089,10 +23772,7 @@ func (m *UpdateLabelsRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23143,10 +23823,7 @@ func (m *UpdateLabelsResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23230,10 +23907,7 @@ func (m *UpdateTxnRecordRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23317,10 +23991,7 @@ func (m *UpdateTxnRecordResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23439,10 +24110,7 @@ func (m *DeleteTxnRecordRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23493,10 +24161,7 @@ func (m *DeleteTxnRecordResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23614,10 +24279,7 @@ func (m *CommitTxnWriteDataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23668,10 +24330,7 @@ func (m *CommitTxnWriteDataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23789,10 +24448,7 @@ func (m *RollbackTxnWriteDataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23843,10 +24499,7 @@ func (m *RollbackTxnWriteDataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23930,10 +24583,7 @@ func (m *CleanTxnMVCCDataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -23984,10 +24634,7 @@ func (m *CleanTxnMVCCDataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24106,10 +24753,7 @@ func (m *KVSetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24160,10 +24804,7 @@ func (m *KVSetResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24278,10 +24919,7 @@ func (m *KVBatchSetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24332,10 +24970,7 @@ func (m *KVBatchSetResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24420,10 +25055,7 @@ func (m *KVGetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24508,10 +25140,7 @@ func (m *KVGetResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24670,10 +25299,7 @@ func (m *KVBatchGetRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24832,10 +25458,7 @@ func (m *KVBatchGetResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24920,10 +25543,7 @@ func (m *KVDeleteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -24974,10 +25594,7 @@ func (m *KVDeleteResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25060,10 +25677,7 @@ func (m *KVBatchDeleteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25114,10 +25728,7 @@ func (m *KVBatchDeleteResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25236,10 +25847,7 @@ func (m *KVRangeDeleteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25290,10 +25898,7 @@ func (m *KVRangeDeleteResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25490,10 +26095,7 @@ func (m *KVScanRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25681,10 +26283,7 @@ func (m *KVScanResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25769,10 +26368,7 @@ func (m *KVBatchMixedWriteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -25857,10 +26453,7 @@ func (m *KVBatchMixedWriteResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -26029,10 +26622,7 @@ func (m *KVMixedWriteRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -26201,10 +26791,7 @@ func (m *KVMixedWriteResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if skippy < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) < 0 {
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -26223,6 +26810,7 @@ func (m *KVMixedWriteResponse) Unmarshal(dAtA []byte) error {
 func skipRpcpb(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -26254,10 +26842,8 @@ func skipRpcpb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -26278,55 +26864,30 @@ func skipRpcpb(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthRpcpb
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthRpcpb
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowRpcpb
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipRpcpb(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthRpcpb
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupRpcpb
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthRpcpb
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthRpcpb = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowRpcpb   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthRpcpb        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowRpcpb          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupRpcpb = fmt.Errorf("proto: unexpected end of group")
 )

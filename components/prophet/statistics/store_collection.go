@@ -28,7 +28,7 @@ const (
 	labelType = "label"
 )
 
-type containerStatistics struct {
+type storeStatistics struct {
 	opt             *config.PersistOptions
 	Up              int
 	Disconnect      int
@@ -44,35 +44,35 @@ type containerStatistics struct {
 	LabelCounter    map[string]int
 }
 
-func newStoreStatistics(opt *config.PersistOptions) *containerStatistics {
-	return &containerStatistics{
+func newStoreStatistics(opt *config.PersistOptions) *storeStatistics {
+	return &storeStatistics{
 		opt:          opt,
 		LabelCounter: make(map[string]int),
 	}
 }
 
-func (s *containerStatistics) Observe(container *core.CachedStore, stats *StoresStats) {
+func (s *storeStatistics) Observe(store *core.CachedStore, stats *StoresStats) {
 	for _, k := range s.opt.GetLocationLabels() {
-		v := container.GetLabelValue(k)
+		v := store.GetLabelValue(k)
 		if v == "" {
 			v = unknown
 		}
 		key := fmt.Sprintf("%s:%s", k, v)
 		// exclude tombstone
-		if container.GetState() != metapb.StoreState_StoreTombstone {
+		if store.GetState() != metapb.StoreState_StoreTombstone {
 			s.LabelCounter[key]++
 		}
 	}
-	containerAddress := container.Meta.GetClientAddress()
-	id := strconv.FormatUint(container.Meta.GetID(), 10)
+	storeAddress := store.Meta.GetClientAddress()
+	id := strconv.FormatUint(store.Meta.GetID(), 10)
 	// Store state.
-	switch container.GetState() {
+	switch store.GetState() {
 	case metapb.StoreState_Up:
-		if container.DownTime() >= s.opt.GetMaxStoreDownTime() {
+		if store.DownTime() >= s.opt.GetMaxStoreDownTime() {
 			s.Down++
-		} else if container.IsUnhealthy() {
+		} else if store.IsUnhealthy() {
 			s.Unhealthy++
-		} else if container.IsDisconnected() {
+		} else if store.IsDisconnected() {
 			s.Disconnect++
 		} else {
 			s.Up++
@@ -81,55 +81,55 @@ func (s *containerStatistics) Observe(container *core.CachedStore, stats *Stores
 		s.Offline++
 	case metapb.StoreState_StoreTombstone:
 		s.Tombstone++
-		s.resetStoreStatistics(containerAddress, id)
+		s.resetStoreStatistics(storeAddress, id)
 		return
 	}
-	if container.IsLowSpace(s.opt.GetLowSpaceRatio()) {
+	if store.IsLowSpace(s.opt.GetLowSpaceRatio()) {
 		s.LowSpace++
 	}
 
 	// Store stats.
-	s.StorageSize += container.StorageSize()
-	s.StorageCapacity += container.GetCapacity()
+	s.StorageSize += store.StorageSize()
+	s.StorageCapacity += store.GetCapacity()
 
 	var resSize, resCount, leaderSize, leaderCount float64
-	s.ShardCount += container.GetTotalShardCount()
-	s.LeaderCount += container.GetTotalLeaderCount()
-	resSize += float64(container.GetTotalShardSize())
-	resCount += float64(container.GetTotalShardCount())
-	leaderSize += float64(container.GetTotalLeaderSize())
-	leaderCount += float64(container.GetTotalLeaderCount())
+	s.ShardCount += store.GetTotalShardCount()
+	s.LeaderCount += store.GetTotalLeaderCount()
+	resSize += float64(store.GetTotalShardSize())
+	resCount += float64(store.GetTotalShardCount())
+	leaderSize += float64(store.GetTotalLeaderSize())
+	leaderCount += float64(store.GetTotalLeaderCount())
 
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available").Set(float64(container.GetAvailable()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_used").Set(float64(container.GetUsedSize()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_capacity").Set(float64(container.GetCapacity()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_avg").Set(float64(container.GetAvgAvailable()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_deviation").Set(float64(container.GetAvailableDeviation()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "resource_size").Set(resSize)
-	containerStatusGauge.WithLabelValues(containerAddress, id, "resource_count").Set(resCount)
-	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_size").Set(leaderSize)
-	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_count").Set(leaderCount)
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_available").Set(float64(store.GetAvailable()))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_used").Set(float64(store.GetUsedSize()))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_capacity").Set(float64(store.GetCapacity()))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_available_avg").Set(float64(store.GetAvgAvailable()))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_available_deviation").Set(float64(store.GetAvailableDeviation()))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "resource_size").Set(resSize)
+	storeStatusGauge.WithLabelValues(storeAddress, id, "resource_count").Set(resCount)
+	storeStatusGauge.WithLabelValues(storeAddress, id, "leader_size").Set(leaderSize)
+	storeStatusGauge.WithLabelValues(storeAddress, id, "leader_count").Set(leaderCount)
 
 	// Store flows.
-	containerFlowStats := stats.GetRollingStoreStats(container.Meta.GetID())
+	containerFlowStats := stats.GetRollingStoreStats(store.Meta.GetID())
 	if containerFlowStats == nil {
 		return
 	}
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes").Set(containerFlowStats.GetLoad(StoreWriteBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes").Set(containerFlowStats.GetLoad(StoreReadBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys").Set(containerFlowStats.GetLoad(StoreWriteKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys").Set(containerFlowStats.GetLoad(StoreReadKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_cpu_usage").Set(containerFlowStats.GetLoad(StoreCPUUsage))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_read_rate").Set(containerFlowStats.GetLoad(StoreDiskReadRate))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_write_rate").Set(containerFlowStats.GetLoad(StoreDiskWriteRate))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_write_rate_bytes").Set(containerFlowStats.GetLoad(StoreWriteBytes))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_read_rate_bytes").Set(containerFlowStats.GetLoad(StoreReadBytes))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_write_rate_keys").Set(containerFlowStats.GetLoad(StoreWriteKeys))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_read_rate_keys").Set(containerFlowStats.GetLoad(StoreReadKeys))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_cpu_usage").Set(containerFlowStats.GetLoad(StoreCPUUsage))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_disk_read_rate").Set(containerFlowStats.GetLoad(StoreDiskReadRate))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_disk_write_rate").Set(containerFlowStats.GetLoad(StoreDiskWriteRate))
 
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreReadBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreReadKeys))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_write_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteBytes))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_read_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreReadBytes))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_write_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteKeys))
+	storeStatusGauge.WithLabelValues(storeAddress, id, "container_read_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreReadKeys))
 }
 
-func (s *containerStatistics) Collect() {
+func (s *storeStatistics) Collect() {
 	metrics := make(map[string]float64)
 	metrics["container_up_count"] = float64(s.Up)
 	metrics["container_disconnected_count"] = float64(s.Disconnect)
@@ -192,7 +192,7 @@ func (s *containerStatistics) Collect() {
 	}
 }
 
-func (s *containerStatistics) resetStoreStatistics(containerAddress string, id string) {
+func (s *storeStatistics) resetStoreStatistics(containerAddress string, id string) {
 	metrics := []string{
 		"resource_score",
 		"leader_score",
@@ -209,13 +209,13 @@ func (s *containerStatistics) resetStoreStatistics(containerAddress string, id s
 		"container_read_rate_keys",
 	}
 	for _, m := range metrics {
-		containerStatusGauge.DeleteLabelValues(containerAddress, id, m)
+		storeStatusGauge.DeleteLabelValues(containerAddress, id, m)
 	}
 }
 
 type containerStatisticsMap struct {
 	opt   *config.PersistOptions
-	stats *containerStatistics
+	stats *storeStatistics
 }
 
 // NewStoreStatisticsMap create a container statistics map
@@ -235,7 +235,7 @@ func (m *containerStatisticsMap) Collect() {
 }
 
 func (m *containerStatisticsMap) Reset() {
-	containerStatusGauge.Reset()
+	storeStatusGauge.Reset()
 	clusterStatusGauge.Reset()
 	placementStatusGauge.Reset()
 }

@@ -239,13 +239,6 @@ func (r *ShardScatterer) Scatter(res *core.CachedShard, group string) (*operator
 		return nil, fmt.Errorf("resource %d has no leader", res.Meta.GetID())
 	}
 
-	if r.cluster.IsShardHot(res) {
-		scatterCounter.WithLabelValues("skip", "hot").Inc()
-		r.cluster.GetLogger().Warn("resource is too hot during scatter",
-			log.ResourceField(res.Meta.GetID()))
-		return nil, fmt.Errorf("resource %d is hot", res.Meta.GetID())
-	}
-
 	return r.scatterShard(res, group), nil
 }
 

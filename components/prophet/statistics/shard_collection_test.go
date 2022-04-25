@@ -57,10 +57,10 @@ func TestShardStatistics(t *testing.T) {
 		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
-	containers := make([]*core.CachedStore, 0, len(metaStores))
+	stores := make([]*core.CachedStore, 0, len(metaStores))
 	for _, m := range metaStores {
 		s := core.NewCachedStore(m)
-		containers = append(containers, s)
+		stores = append(stores, s)
 	}
 
 	downPeers := []metapb.ReplicaStats{
@@ -68,77 +68,77 @@ func TestShardStatistics(t *testing.T) {
 		{Replica: peers[1], DownSeconds: 3608},
 	}
 
-	container3 := containers[3].Clone(core.OfflineStore(false))
-	containers[3] = container3
+	store3 := stores[3].Clone(core.OfflineStore(false))
+	stores[3] = store3
 	r1 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("aa"), End: []byte("bb")}
 	r2 := metapb.Shard{ID: 2, Replicas: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
-	resource1 := core.NewCachedShard(r1, &peers[0])
-	resource2 := core.NewCachedShard(r2, &peers[0])
-	resourceStats := NewShardStatistics(opt, s.manager)
-	resourceStats.Observe(resource1, containers)
-	assert.Equal(t, 1, len(resourceStats.stats[ExtraPeer]))
-	assert.Equal(t, 1, len(resourceStats.stats[LearnerPeer]))
-	assert.Equal(t, 1, len(resourceStats.stats[EmptyShard]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[EmptyShard]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
+	shard1 := core.NewCachedShard(r1, &peers[0])
+	shard2 := core.NewCachedShard(r2, &peers[0])
+	shardStats := NewShardStatistics(opt, s.manager)
+	shardStats.Observe(shard1, stores)
+	assert.Equal(t, 1, len(shardStats.stats[ExtraPeer]))
+	assert.Equal(t, 1, len(shardStats.stats[LearnerPeer]))
+	assert.Equal(t, 1, len(shardStats.stats[EmptyShard]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[EmptyShard]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[OfflinePeer]))
 
-	resource1 = resource1.Clone(
+	shard1 = shard1.Clone(
 		core.WithDownPeers(downPeers),
 		core.WithPendingPeers(peers[0:1]),
 		core.SetApproximateSize(144),
 	)
-	resourceStats.Observe(resource1, containers)
+	shardStats.Observe(shard1, stores)
 
-	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[MissPeer]), 0)
-	assert.Equal(t, len(resourceStats.stats[DownPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[EmptyShard]), 0)
+	assert.Equal(t, len(shardStats.stats[ExtraPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[MissPeer]), 0)
+	assert.Equal(t, len(shardStats.stats[DownPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[PendingPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[LearnerPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[EmptyShard]), 0)
 
-	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[DownPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[PendingPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[EmptyShard]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[MissPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[DownPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[EmptyShard]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[OfflinePeer]))
 
-	resource2 = resource2.Clone(core.WithDownPeers(downPeers[0:1]))
-	resourceStats.Observe(resource2, containers[0:2])
-	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[DownPeer]), 2)
-	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 1)
-	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[DownPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[PendingPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
+	shard2 = shard2.Clone(core.WithDownPeers(downPeers[0:1]))
+	shardStats.Observe(shard2, stores[0:2])
+	assert.Equal(t, len(shardStats.stats[ExtraPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[MissPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[DownPeer]), 2)
+	assert.Equal(t, len(shardStats.stats[PendingPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[LearnerPeer]), 1)
+	assert.Equal(t, 1, len(shardStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[MissPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[DownPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 1, len(shardStats.offlineStats[OfflinePeer]))
 
-	resource1 = resource1.Clone(core.WithRemoveStorePeer(7))
-	resourceStats.Observe(resource1, containers[0:3])
-	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 0)
-	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[DownPeer]), 2)
-	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 0)
-	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 0)
-	assert.Equal(t, 0, len(resourceStats.offlineStats[ExtraPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[DownPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[PendingPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[OfflinePeer]))
+	shard1 = shard1.Clone(core.WithRemoveStorePeer(7))
+	shardStats.Observe(shard1, stores[0:3])
+	assert.Equal(t, len(shardStats.stats[ExtraPeer]), 0)
+	assert.Equal(t, len(shardStats.stats[MissPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[DownPeer]), 2)
+	assert.Equal(t, len(shardStats.stats[PendingPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[LearnerPeer]), 0)
+	assert.Equal(t, len(shardStats.stats[OfflinePeer]), 0)
+	assert.Equal(t, 0, len(shardStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[MissPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[DownPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 0, len(shardStats.offlineStats[OfflinePeer]))
 
-	container3 = containers[3].Clone(core.UpStore())
-	containers[3] = container3
-	resourceStats.Observe(resource1, containers)
-	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 0)
+	store3 = stores[3].Clone(core.UpStore())
+	stores[3] = store3
+	shardStats.Observe(shard1, stores)
+	assert.Equal(t, len(shardStats.stats[OfflinePeer]), 0)
 }
 
 func TestShardStatisticsWithPlacementRule(t *testing.T) {
@@ -160,29 +160,29 @@ func TestShardStatisticsWithPlacementRule(t *testing.T) {
 		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
-	containers := make([]*core.CachedStore, 0, len(metaStores))
+	stores := make([]*core.CachedStore, 0, len(metaStores))
 	for _, m := range metaStores {
 		s := core.NewCachedStore(m)
-		containers = append(containers, s)
+		stores = append(stores, s)
 	}
 	r2 := metapb.Shard{ID: 0, Replicas: peers[0:1], Start: []byte("aa"), End: []byte("bb")}
 	r3 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("ee"), End: []byte("ff")}
 	r4 := metapb.Shard{ID: 2, Replicas: peers[0:3], Start: []byte("gg"), End: []byte("hh")}
 
-	resource2 := core.NewCachedShard(r2, &peers[0])
-	resource3 := core.NewCachedShard(r3, &peers[0])
-	resource4 := core.NewCachedShard(r4, &peers[0])
-	resourceStats := NewShardStatistics(opt, s.manager)
+	shard2 := core.NewCachedShard(r2, &peers[0])
+	shard3 := core.NewCachedShard(r3, &peers[0])
+	shard4 := core.NewCachedShard(r4, &peers[0])
+	shardStats := NewShardStatistics(opt, s.manager)
 	// r2 didn't match the rules
-	resourceStats.Observe(resource2, containers)
-	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
-	resourceStats.Observe(resource3, containers)
+	shardStats.Observe(shard2, stores)
+	assert.Equal(t, len(shardStats.stats[MissPeer]), 1)
+	shardStats.Observe(shard3, stores)
 	// r3 didn't match the rules
-	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
-	resourceStats.Observe(resource4, containers)
+	assert.Equal(t, len(shardStats.stats[ExtraPeer]), 1)
+	shardStats.Observe(shard4, stores)
 	// r4 match the rules
-	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[MissPeer]), 1)
+	assert.Equal(t, len(shardStats.stats[ExtraPeer]), 1)
 }
 
 func TestShardLabelIsolationLevel(t *testing.T) {
@@ -238,14 +238,14 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	}
 	res := []string{"rack", "host", "zone", "rack", "none", "rack", "host"}
 	counter := map[string]int{"none": 1, "host": 2, "rack": 3, "zone": 1}
-	resourceID := 1
+	shardID := 1
 	f := func(labels []map[string]string, res string, locationLabels []string) {
 		metaStores := []metapb.Store{
 			{ID: 1, ClientAddress: "mock://server-1"},
 			{ID: 2, ClientAddress: "mock://server-2"},
 			{ID: 3, ClientAddress: "mock://server-3"},
 		}
-		containers := make([]*core.CachedStore, 0, len(labels))
+		stores := make([]*core.CachedStore, 0, len(labels))
 		for i, m := range metaStores {
 			var newLabels []metapb.Label
 			for k, v := range labels[i] {
@@ -253,13 +253,13 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 			}
 			s := core.NewCachedStore(m, core.SetStoreLabels(newLabels))
 
-			containers = append(containers, s)
+			stores = append(stores, s)
 		}
-		resource := core.NewCachedShard(metapb.Shard{ID: uint64(resourceID)}, nil)
-		label := getShardLabelIsolation(containers, locationLabels)
-		labelLevelStats.Observe(resource, containers, locationLabels)
+		shard := core.NewCachedShard(metapb.Shard{ID: uint64(shardID)}, nil)
+		label := getShardLabelIsolation(stores, locationLabels)
+		labelLevelStats.Observe(shard, stores, locationLabels)
 		assert.Equal(t, res, label)
-		resourceID++
+		shardID++
 	}
 
 	for i, labels := range labelsSet {
@@ -277,7 +277,7 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	label = getShardLabelIsolation([]*core.CachedStore{store}, locationLabels)
 	assert.Equal(t, "zone", label)
 
-	resourceID = 1
+	shardID = 1
 	res = []string{"rack", "none", "zone", "rack", "none", "rack", "none"}
 	counter = map[string]int{"none": 3, "host": 0, "rack": 3, "zone": 1}
 	locationLabels = []string{"zone", "rack"}

@@ -28,8 +28,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
-	"github.com/matrixorigin/matrixcube/components/prophet/schedulers"
-	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"go.uber.org/zap"
 )
@@ -52,17 +50,17 @@ const (
 type coordinator struct {
 	sync.RWMutex
 
-	wg                sync.WaitGroup
-	ctx               context.Context
-	cancel            context.CancelFunc
-	cluster           *RaftCluster
-	checkers          *schedule.CheckerController
-	resourceScatterer *schedule.ShardScatterer
-	resourceSplitter  *schedule.ShardSplitter
-	schedulers        map[string]*scheduleController
-	opController      *schedule.OperatorController
-	hbStreams         *hbstream.HeartbeatStreams
-	pluginInterface   *schedule.PluginInterface
+	wg              sync.WaitGroup
+	ctx             context.Context
+	cancel          context.CancelFunc
+	cluster         *RaftCluster
+	checkers        *schedule.CheckerController
+	shardScatterer  *schedule.ShardScatterer
+	shardSplitter   *schedule.ShardSplitter
+	schedulers      map[string]*scheduleController
+	opController    *schedule.OperatorController
+	hbStreams       *hbstream.HeartbeatStreams
+	pluginInterface *schedule.PluginInterface
 }
 
 // newCoordinator creates a new coordinator.
@@ -70,16 +68,16 @@ func newCoordinator(ctx context.Context, cluster *RaftCluster, hbStreams *hbstre
 	ctx, cancel := context.WithCancel(ctx)
 	opController := schedule.NewOperatorController(ctx, cluster, hbStreams)
 	return &coordinator{
-		ctx:               ctx,
-		cancel:            cancel,
-		cluster:           cluster,
-		checkers:          schedule.NewCheckerController(ctx, cluster, cluster.ruleManager, opController),
-		resourceScatterer: schedule.NewShardScatterer(ctx, cluster),
-		resourceSplitter:  schedule.NewShardSplitter(cluster, schedule.NewSplitShardsHandler(cluster, opController)),
-		schedulers:        make(map[string]*scheduleController),
-		opController:      opController,
-		hbStreams:         hbStreams,
-		pluginInterface:   schedule.NewPluginInterface(cluster.GetLogger()),
+		ctx:             ctx,
+		cancel:          cancel,
+		cluster:         cluster,
+		checkers:        schedule.NewCheckerController(ctx, cluster, cluster.ruleManager, opController),
+		shardScatterer:  schedule.NewShardScatterer(ctx, cluster),
+		shardSplitter:   schedule.NewShardSplitter(cluster, schedule.NewSplitShardsHandler(cluster, opController)),
+		schedulers:      make(map[string]*scheduleController),
+		opController:    opController,
+		hbStreams:       hbStreams,
+		pluginInterface: schedule.NewPluginInterface(cluster.GetLogger()),
 	}
 }
 
@@ -433,41 +431,6 @@ func (c *coordinator) stop() {
 	c.cancel()
 }
 
-// Hack to retrieve info from scheduler.
-// TODO: remove it.
-type hasHotStatus interface {
-	GetHotReadStatus() *statistics.StoreHotPeersInfos
-	GetHotWriteStatus() *statistics.StoreHotPeersInfos
-	GetWritePendingInfluence() map[uint64]schedulers.Influence
-	GetReadPendingInfluence() map[uint64]schedulers.Influence
-}
-
-func (c *coordinator) getHotWriteShards() *statistics.StoreHotPeersInfos {
-	c.RLock()
-	defer c.RUnlock()
-	s, ok := c.schedulers[schedulers.HotShardName]
-	if !ok {
-		return nil
-	}
-	if h, ok := s.Scheduler.(hasHotStatus); ok {
-		return h.GetHotWriteStatus()
-	}
-	return nil
-}
-
-func (c *coordinator) getHotReadShards() *statistics.StoreHotPeersInfos {
-	c.RLock()
-	defer c.RUnlock()
-	s, ok := c.schedulers[schedulers.HotShardName]
-	if !ok {
-		return nil
-	}
-	if h, ok := s.Scheduler.(hasHotStatus); ok {
-		return h.GetHotReadStatus()
-	}
-	return nil
-}
-
 func (c *coordinator) getSchedulers() []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -504,80 +467,6 @@ func (c *coordinator) collectSchedulerMetrics() {
 
 func (c *coordinator) resetSchedulerMetrics() {
 	schedulerStatusGauge.Reset()
-}
-
-func (c *coordinator) collectHotSpotMetrics() {
-	c.RLock()
-	// Collects hot write resource metrics.
-	s, ok := c.schedulers[schedulers.HotShardName]
-	if !ok {
-		c.RUnlock()
-		return
-	}
-	c.RUnlock()
-	containers := c.cluster.GetStores()
-	status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
-	pendings := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
-	for _, s := range containers {
-		containerAddress := s.Meta.GetClientAddress()
-		containerID := s.Meta.GetID()
-		containerLabel := fmt.Sprintf("%d", containerID)
-		stat, ok := status.AsPeer[containerID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_bytes_as_peer").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_keys_as_peer").Set(stat.TotalKeysRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_write_resource_as_peer").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_bytes_as_peer").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_write_resource_as_peer").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_keys_as_peer").Set(0)
-		}
-
-		stat, ok = status.AsLeader[containerID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_bytes_as_leader").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_keys_as_leader").Set(stat.TotalKeysRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_write_resource_as_leader").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_bytes_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_written_keys_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_write_resource_as_leader").Set(0)
-		}
-
-		infl := pendings[containerID]
-		// TODO: add to tidb-ansible after merging pending influence into operator influence.
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "write_pending_influence_byte_rate").Set(infl.ByteRate)
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "write_pending_influence_key_rate").Set(infl.KeyRate)
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "write_pending_influence_count").Set(infl.Count)
-	}
-
-	// Collects hot read resource metrics.
-	status = s.Scheduler.(hasHotStatus).GetHotReadStatus()
-	pendings = s.Scheduler.(hasHotStatus).GetReadPendingInfluence()
-	for _, s := range containers {
-		containerAddress := s.Meta.GetClientAddress()
-		containerID := s.Meta.GetID()
-		containerLabel := fmt.Sprintf("%d", containerID)
-		stat, ok := status.AsLeader[containerID]
-		if ok {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_read_bytes_as_leader").Set(stat.TotalBytesRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_read_keys_as_leader").Set(stat.TotalKeysRate)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_read_resource_as_leader").Set(float64(stat.Count))
-		} else {
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_read_bytes_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "total_read_keys_as_leader").Set(0)
-			hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "hot_read_resource_as_leader").Set(0)
-		}
-
-		infl := pendings[containerID]
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "read_pending_influence_byte_rate").Set(infl.ByteRate)
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "read_pending_influence_key_rate").Set(infl.KeyRate)
-		hotSpotStatusGauge.WithLabelValues(containerAddress, containerLabel, "read_pending_influence_count").Set(infl.Count)
-	}
-}
-
-func (c *coordinator) resetHotSpotMetrics() {
-	hotSpotStatusGauge.Reset()
 }
 
 func (c *coordinator) shouldRun() bool {

@@ -20,10 +20,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 )
 
-// ShardStatisticType represents the type of the resource's status.
+// ShardStatisticType represents the type of the shard's status.
 type ShardStatisticType uint32
 
-// resource status type
+// shard status type
 const (
 	MissPeer ShardStatisticType = 1 << iota
 	ExtraPeer
@@ -36,7 +36,7 @@ const (
 
 const nonIsolation = "none"
 
-// ShardStatistics is used to record the status of resources.
+// ShardStatistics is used to record the status of shards.
 type ShardStatistics struct {
 	opt          *config.PersistOptions
 	stats        map[ShardStatisticType]map[uint64]*core.CachedShard
@@ -74,7 +74,7 @@ func NewShardStatistics(opt *config.PersistOptions, ruleManager *placement.RuleM
 	return r
 }
 
-// GetShardStatsByType gets the status of the resource by types.
+// GetShardStatsByType gets the status of the shard by types.
 func (r *ShardStatistics) GetShardStatsByType(typ ShardStatisticType) []*core.CachedShard {
 	res := make([]*core.CachedShard, 0, len(r.stats[typ]))
 	for _, r := range r.stats[typ] {
@@ -108,8 +108,8 @@ func (r *ShardStatistics) deleteOfflineEntry(deleteIndex ShardStatisticType, res
 	}
 }
 
-// Observe records the current resources' status.
-func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.CachedStore) {
+// Observe records the current shards' status.
+func (r *ShardStatistics) Observe(res *core.CachedShard, stores []*core.CachedStore) {
 	// Shard state.
 	resID := res.Meta.GetID()
 	var (
@@ -131,7 +131,7 @@ func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.Cach
 
 	var isOffline bool
 
-	for _, store := range containers {
+	for _, store := range stores {
 		if store.IsOffline() {
 			_, ok := res.GetStorePeer(store.Meta.GetID())
 			if ok {
@@ -179,94 +179,94 @@ func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.Cach
 	r.index[resID] = peerTypeIndex
 }
 
-// ClearDefunctShard is used to handle the overlap resource.
+// ClearDefunctShard is used to handle the overlap shard.
 func (r *ShardStatistics) ClearDefunctShard(resID uint64) {
 	if oldIndex, ok := r.index[resID]; ok {
 		r.deleteEntry(oldIndex, resID)
 	}
 }
 
-// Collect collects the metrics of the resources' status.
+// Collect collects the metrics of the shards' status.
 func (r *ShardStatistics) Collect() {
-	resourceStatusGauge.WithLabelValues("miss-peer-resource-count").Set(float64(len(r.stats[MissPeer])))
-	resourceStatusGauge.WithLabelValues("extra-peer-resource-count").Set(float64(len(r.stats[ExtraPeer])))
-	resourceStatusGauge.WithLabelValues("down-peer-resource-count").Set(float64(len(r.stats[DownPeer])))
-	resourceStatusGauge.WithLabelValues("pending-peer-resource-count").Set(float64(len(r.stats[PendingPeer])))
-	resourceStatusGauge.WithLabelValues("learner-peer-resource-count").Set(float64(len(r.stats[LearnerPeer])))
-	resourceStatusGauge.WithLabelValues("empty-resource-count").Set(float64(len(r.stats[EmptyShard])))
+	shardStatusGauge.WithLabelValues("miss-peer-shard-count").Set(float64(len(r.stats[MissPeer])))
+	shardStatusGauge.WithLabelValues("extra-peer-shard-count").Set(float64(len(r.stats[ExtraPeer])))
+	shardStatusGauge.WithLabelValues("down-peer-shard-count").Set(float64(len(r.stats[DownPeer])))
+	shardStatusGauge.WithLabelValues("pending-peer-shard-count").Set(float64(len(r.stats[PendingPeer])))
+	shardStatusGauge.WithLabelValues("learner-peer-shard-count").Set(float64(len(r.stats[LearnerPeer])))
+	shardStatusGauge.WithLabelValues("empty-shard-count").Set(float64(len(r.stats[EmptyShard])))
 
-	offlineShardStatusGauge.WithLabelValues("miss-peer-resource-count").Set(float64(len(r.offlineStats[MissPeer])))
-	offlineShardStatusGauge.WithLabelValues("extra-peer-resource-count").Set(float64(len(r.offlineStats[ExtraPeer])))
-	offlineShardStatusGauge.WithLabelValues("down-peer-resource-count").Set(float64(len(r.offlineStats[DownPeer])))
-	offlineShardStatusGauge.WithLabelValues("pending-peer-resource-count").Set(float64(len(r.offlineStats[PendingPeer])))
-	offlineShardStatusGauge.WithLabelValues("learner-peer-resource-count").Set(float64(len(r.offlineStats[LearnerPeer])))
-	offlineShardStatusGauge.WithLabelValues("empty-resource-count").Set(float64(len(r.offlineStats[EmptyShard])))
-	offlineShardStatusGauge.WithLabelValues("offline-peer-resource-count").Set(float64(len(r.offlineStats[OfflinePeer])))
+	offlineShardStatusGauge.WithLabelValues("miss-peer-shard-count").Set(float64(len(r.offlineStats[MissPeer])))
+	offlineShardStatusGauge.WithLabelValues("extra-peer-shard-count").Set(float64(len(r.offlineStats[ExtraPeer])))
+	offlineShardStatusGauge.WithLabelValues("down-peer-shard-count").Set(float64(len(r.offlineStats[DownPeer])))
+	offlineShardStatusGauge.WithLabelValues("pending-peer-shard-count").Set(float64(len(r.offlineStats[PendingPeer])))
+	offlineShardStatusGauge.WithLabelValues("learner-peer-shard-count").Set(float64(len(r.offlineStats[LearnerPeer])))
+	offlineShardStatusGauge.WithLabelValues("empty-shard-count").Set(float64(len(r.offlineStats[EmptyShard])))
+	offlineShardStatusGauge.WithLabelValues("offline-peer-shard-count").Set(float64(len(r.offlineStats[OfflinePeer])))
 }
 
-// Reset resets the metrics of the resources' status.
+// Reset resets the metrics of the shards' status.
 func (r *ShardStatistics) Reset() {
-	resourceStatusGauge.Reset()
+	shardStatusGauge.Reset()
 	offlineShardStatusGauge.Reset()
 }
 
 // LabelStatistics is the statistics of the level of labels.
 type LabelStatistics struct {
-	resourceLabelStats map[uint64]string
-	labelCounter       map[string]int
+	shardLabelStats map[uint64]string
+	labelCounter    map[string]int
 }
 
 // NewLabelStatistics creates a new LabelStatistics.
 func NewLabelStatistics() *LabelStatistics {
 	return &LabelStatistics{
-		resourceLabelStats: make(map[uint64]string),
-		labelCounter:       make(map[string]int),
+		shardLabelStats: make(map[uint64]string),
+		labelCounter:    make(map[string]int),
 	}
 }
 
 // Observe records the current label status.
-func (l *LabelStatistics) Observe(res *core.CachedShard, containers []*core.CachedStore, labels []string) {
+func (l *LabelStatistics) Observe(res *core.CachedShard, stores []*core.CachedStore, labels []string) {
 	resID := res.Meta.GetID()
-	resourceIsolation := getShardLabelIsolation(containers, labels)
-	if label, ok := l.resourceLabelStats[resID]; ok {
-		if label == resourceIsolation {
+	shardIsolation := getShardLabelIsolation(stores, labels)
+	if label, ok := l.shardLabelStats[resID]; ok {
+		if label == shardIsolation {
 			return
 		}
 		l.labelCounter[label]--
 	}
-	l.resourceLabelStats[resID] = resourceIsolation
-	l.labelCounter[resourceIsolation]++
+	l.shardLabelStats[resID] = shardIsolation
+	l.labelCounter[shardIsolation]++
 }
 
 // Collect collects the metrics of the label status.
 func (l *LabelStatistics) Collect() {
 	for level, count := range l.labelCounter {
-		resourceLabelLevelGauge.WithLabelValues(level).Set(float64(count))
+		shardLabelLevelGauge.WithLabelValues(level).Set(float64(count))
 	}
 }
 
 // Reset resets the metrics of the label status.
 func (l *LabelStatistics) Reset() {
-	resourceLabelLevelGauge.Reset()
+	shardLabelLevelGauge.Reset()
 }
 
-// ClearDefunctShard is used to handle the overlap resource.
+// ClearDefunctShard is used to handle the overlap shard.
 func (l *LabelStatistics) ClearDefunctShard(resID uint64) {
-	if label, ok := l.resourceLabelStats[resID]; ok {
+	if label, ok := l.shardLabelStats[resID]; ok {
 		l.labelCounter[label]--
-		delete(l.resourceLabelStats, resID)
+		delete(l.shardLabelStats, resID)
 	}
 }
 
-func getShardLabelIsolation(containers []*core.CachedStore, labels []string) string {
-	if len(containers) == 0 || len(labels) == 0 {
+func getShardLabelIsolation(stores []*core.CachedStore, labels []string) string {
+	if len(stores) == 0 || len(labels) == 0 {
 		return nonIsolation
 	}
-	queueStores := [][]*core.CachedStore{containers}
+	queueStores := [][]*core.CachedStore{stores}
 	for level, label := range labels {
-		newQueueStores := make([][]*core.CachedStore, 0, len(containers))
-		for _, containers := range queueStores {
-			notIsolatedStores := notIsolatedStoresWithLabel(containers, label)
+		newQueueStores := make([][]*core.CachedStore, 0, len(stores))
+		for _, stores := range queueStores {
+			notIsolatedStores := notIsolatedStoresWithLabel(stores, label)
 			if len(notIsolatedStores) > 0 {
 				newQueueStores = append(newQueueStores, notIsolatedStores...)
 			}
@@ -279,11 +279,11 @@ func getShardLabelIsolation(containers []*core.CachedStore, labels []string) str
 	return nonIsolation
 }
 
-func notIsolatedStoresWithLabel(containers []*core.CachedStore, label string) [][]*core.CachedStore {
+func notIsolatedStoresWithLabel(stores []*core.CachedStore, label string) [][]*core.CachedStore {
 	var emptyValueStores []*core.CachedStore
 	valueStoresMap := make(map[string][]*core.CachedStore)
 
-	for _, s := range containers {
+	for _, s := range stores {
 		labelValue := s.GetLabelValue(label)
 		if labelValue == "" {
 			emptyValueStores = append(emptyValueStores, s)

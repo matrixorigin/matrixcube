@@ -270,7 +270,7 @@ type SchedulerConfig struct {
 // If these schedulers are not in the persistent configuration, they
 // will be created automatically when reloading.
 var DefaultSchedulers = SchedulerConfigs{
-	{Type: "balance-resource"},
+	{Type: "balance-shard"},
 	{Type: "balance-leader"},
 	// TODO: disable hot
 	// {Type: "hot-resource"},

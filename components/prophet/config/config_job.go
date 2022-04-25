@@ -15,7 +15,7 @@ type jobRegister struct {
 
 // ShardsAware resources aware
 type ShardsAware interface {
-	// ForeachWaittingCreateShards do every waitting resources
+	// ForeachWaitingCreateShards do every waiting resources
 	ForeachWaitingCreateShards(do func(res metapb.Shard))
 	// ForeachShards foreach resource by group
 	ForeachShards(group uint64, fn func(res metapb.Shard))

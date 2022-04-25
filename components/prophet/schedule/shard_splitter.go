@@ -160,9 +160,6 @@ func (r *ShardSplitter) groupKeysByShard(group uint64, keys [][]byte) map[uint64
 }
 
 func (r *ShardSplitter) checkShardValid(res *core.CachedShard) bool {
-	if r.cluster.IsShardHot(res) {
-		return false
-	}
 	if !opt.IsShardReplicated(r.cluster, res) {
 		r.cluster.AddSuspectShards(res.Meta.GetID())
 		return false

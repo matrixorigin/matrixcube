@@ -18,25 +18,22 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
-	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
 )
 
 const (
-	// RejectLeader is the label property type that suggests a container should not
-	// have any resource leaders.
+	// RejectLeader is the label property type that suggests a store should not
+	// have any shard leaders.
 	RejectLeader = "reject-leader"
 )
 
-// Cluster provides an overview of a cluster's resources distribution.
+// Cluster provides an overview of a cluster's shards distribution.
 // TODO: This interface should be moved to a better place.
 type Cluster interface {
 	core.ShardSetInformer
 	core.StoreSetInformer
 	core.StoreSetController
-	statistics.ShardStatInformer
-	statistics.StoreStatInformer
 
 	GetLogger() *zap.Logger
 	GetOpts() *config.PersistOptions

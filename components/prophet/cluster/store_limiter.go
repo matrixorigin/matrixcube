@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// StoreLimiter adjust the container limit dynamically
+// StoreLimiter adjust the store limit dynamically
 type StoreLimiter struct {
 	m       sync.RWMutex
 	logger  *zap.Logger
@@ -34,7 +34,7 @@ type StoreLimiter struct {
 	current LoadState
 }
 
-// NewStoreLimiter builds a container limiter object using the operator controller
+// NewStoreLimiter builds a store limiter object using the operator controller
 func NewStoreLimiter(opt *config.PersistOptions, logger *zap.Logger) *StoreLimiter {
 	defaultScene := map[limit.Type]*limit.Scene{
 		limit.AddPeer:    limit.DefaultScene(limit.AddPeer),
@@ -50,7 +50,7 @@ func NewStoreLimiter(opt *config.PersistOptions, logger *zap.Logger) *StoreLimit
 	}
 }
 
-// Collect the container statistics and update the cluster state
+// Collect the store statistics and update the cluster state
 func (s *StoreLimiter) Collect(stats *metapb.StoreStats) {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -66,13 +66,13 @@ func (s *StoreLimiter) Collect(stats *metapb.StoreStats) {
 	if ratePeerAdd > 0 || ratePeerRemove > 0 {
 		if ratePeerAdd > 0 {
 			s.opt.SetAllStoresLimit(limit.AddPeer, ratePeerAdd)
-			s.logger.Info("change container resource add limit for cluster",
+			s.logger.Info("change store shard add limit for cluster",
 				zap.String("state", state.String()),
 				zap.Float64("rate-peer-add", ratePeerAdd))
 		}
 		if ratePeerRemove > 0 {
 			s.opt.SetAllStoresLimit(limit.RemovePeer, ratePeerRemove)
-			s.logger.Info("change container resource remove limit for cluster",
+			s.logger.Info("change store shard remove limit for cluster",
 				zap.String("state", state.String()),
 				zap.Float64("rate-peer-remove", ratePeerRemove))
 		}
@@ -106,7 +106,7 @@ func (s *StoreLimiter) calculateRate(limitType limit.Type, state LoadState) floa
 	return rate
 }
 
-// ReplaceStoreLimitScene replaces the container limit values for different scenes
+// ReplaceStoreLimitScene replaces the store limit values for different scenes
 func (s *StoreLimiter) ReplaceStoreLimitScene(scene *limit.Scene, limitType limit.Type) {
 	s.m.Lock()
 	defer s.m.Unlock()

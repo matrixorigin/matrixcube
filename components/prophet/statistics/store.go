@@ -23,7 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// StoresStats is a cache hold hot resources.
+// StoresStats is a cache hold hot stores.
 type StoresStats struct {
 	sync.RWMutex
 	rollingStoresStats map[uint64]*RollingStoreStats
@@ -38,56 +38,56 @@ func NewStoresStats() *StoresStats {
 	}
 }
 
-// RemoveRollingStoreStats removes RollingStoreStats with a given container ID.
+// RemoveRollingStoreStats removes RollingStoreStats with a given store ID.
 func (s *StoresStats) RemoveRollingStoreStats(StoreID uint64) {
 	s.Lock()
 	defer s.Unlock()
 	delete(s.rollingStoresStats, StoreID)
 }
 
-// GetRollingStoreStats gets RollingStoreStats with a given container ID.
-func (s *StoresStats) GetRollingStoreStats(containerID uint64) *RollingStoreStats {
+// GetRollingStoreStats gets RollingStoreStats with a given store ID.
+func (s *StoresStats) GetRollingStoreStats(storeID uint64) *RollingStoreStats {
 	s.RLock()
 	defer s.RUnlock()
-	return s.rollingStoresStats[containerID]
+	return s.rollingStoresStats[storeID]
 }
 
-// GetOrCreateRollingStoreStats gets or creates RollingStoreStats with a given container ID.
-func (s *StoresStats) GetOrCreateRollingStoreStats(containerID uint64) *RollingStoreStats {
+// GetOrCreateRollingStoreStats gets or creates RollingStoreStats with a given store ID.
+func (s *StoresStats) GetOrCreateRollingStoreStats(storeID uint64) *RollingStoreStats {
 	s.Lock()
 	defer s.Unlock()
-	ret, ok := s.rollingStoresStats[containerID]
+	ret, ok := s.rollingStoresStats[storeID]
 	if !ok {
 		ret = newRollingStoreStats()
-		s.rollingStoresStats[containerID] = ret
+		s.rollingStoresStats[storeID] = ret
 	}
 	return ret
 }
 
-// Observe records the current container status with a given container.
-func (s *StoresStats) Observe(containerID uint64, stats *metapb.StoreStats) {
-	container := s.GetOrCreateRollingStoreStats(containerID)
-	container.Observe(stats)
+// Observe records the current store status with a given store.
+func (s *StoresStats) Observe(storeID uint64, stats *metapb.StoreStats) {
+	store := s.GetOrCreateRollingStoreStats(storeID)
+	store.Observe(stats)
 }
 
-// Set sets the container statistics (for test).
-func (s *StoresStats) Set(containerID uint64, stats *metapb.StoreStats) {
-	container := s.GetOrCreateRollingStoreStats(containerID)
-	container.Set(stats)
+// Set sets the store statistics (for test).
+func (s *StoresStats) Set(storeID uint64, stats *metapb.StoreStats) {
+	store := s.GetOrCreateRollingStoreStats(storeID)
+	store.Set(stats)
 }
 
 // UpdateTotalLoad updates the total loads of all stores.
-func (s *StoresStats) UpdateTotalLoad(containers []*core.CachedStore) {
+func (s *StoresStats) UpdateTotalLoad(stores []*core.CachedStore) {
 	s.Lock()
 	defer s.Unlock()
 	for i := range s.totalLoads {
 		s.totalLoads[i] = 0
 	}
-	for _, container := range containers {
-		if !container.IsUp() {
+	for _, store := range stores {
+		if !store.IsUp() {
 			continue
 		}
-		stats, ok := s.rollingStoresStats[container.Meta.GetID()]
+		stats, ok := s.rollingStoresStats[store.Meta.GetID()]
 		if !ok {
 			continue
 		}
@@ -110,25 +110,25 @@ func (s *StoresStats) GetStoresLoads() map[uint64][]float64 {
 	return res
 }
 
-func (s *StoresStats) containerIsUnhealthy(cluster core.StoreSetInformer, containerID uint64) bool {
-	container := cluster.GetStore(containerID)
-	return container.IsTombstone() || container.IsUnhealthy() || container.IsPhysicallyDestroyed()
+func (s *StoresStats) storeIsUnhealthy(cluster core.StoreSetInformer, storeID uint64) bool {
+	store := cluster.GetStore(storeID)
+	return store.IsTombstone() || store.IsUnhealthy() || store.IsPhysicallyDestroyed()
 }
 
-// FilterUnhealthyStore filter unhealthy container
+// FilterUnhealthyStore filter unhealthy store
 func (s *StoresStats) FilterUnhealthyStore(cluster core.StoreSetInformer) {
 	s.Lock()
 	defer s.Unlock()
-	for containerID := range s.rollingStoresStats {
-		if s.containerIsUnhealthy(cluster, containerID) {
-			delete(s.rollingStoresStats, containerID)
+	for storeID := range s.rollingStoresStats {
+		if s.storeIsUnhealthy(cluster, storeID) {
+			delete(s.rollingStoresStats, storeID)
 		}
 	}
 }
 
-// UpdateStoreHeartbeatMetrics is used to update container heartbeat interval metrics
-func (s *StoresStats) UpdateStoreHeartbeatMetrics(container *core.CachedStore) {
-	containerHeartbeatIntervalHist.Observe(time.Since(container.GetLastHeartbeatTS()).Seconds())
+// UpdateStoreHeartbeatMetrics is used to update store heartbeat interval metrics
+func (s *StoresStats) UpdateStoreHeartbeatMetrics(store *core.CachedStore) {
+	storeHeartbeatIntervalHist.Observe(time.Since(store.GetLastHeartbeatTS()).Seconds())
 }
 
 // RollingStoreStats are multiple sets of recent historical records with specified windows size.
@@ -139,7 +139,7 @@ type RollingStoreStats struct {
 }
 
 const (
-	containerStatsRollingWindows = 3
+	shardStatsRollingWindows = 3
 	// DefaultAotSize is default size of average over time.
 	DefaultAotSize = 2
 	// DefaultWriteMfSize is default size of write median filter
@@ -158,9 +158,9 @@ func newRollingStoreStats() *RollingStoreStats {
 	timeMedians[StoreWriteKeys] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultWriteMfSize, interval)
 
 	movingAvgs := make(map[StoreStatKind]movingaverage.MovingAvg)
-	movingAvgs[StoreCPUUsage] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
-	movingAvgs[StoreDiskReadRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
-	movingAvgs[StoreDiskWriteRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
+	movingAvgs[StoreCPUUsage] = movingaverage.NewMedianFilter(shardStatsRollingWindows)
+	movingAvgs[StoreDiskReadRate] = movingaverage.NewMedianFilter(shardStatsRollingWindows)
+	movingAvgs[StoreDiskWriteRate] = movingaverage.NewMedianFilter(shardStatsRollingWindows)
 
 	return &RollingStoreStats{
 		timeMedians: timeMedians,

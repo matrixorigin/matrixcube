@@ -14,17 +14,9 @@
 
 package statistics
 
-import (
-	"fmt"
-)
-
 const (
 	// StoreHeartBeatReportInterval is the heartbeat report interval of a container.
 	StoreHeartBeatReportInterval = 10
 	// ShardHeartBeatReportInterval is the heartbeat report interval of a resource.
 	ShardHeartBeatReportInterval = 60
 )
-
-func containerTag(id uint64) string {
-	return fmt.Sprintf("container-%d", id)
-}

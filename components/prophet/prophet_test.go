@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	_ "github.com/matrixorigin/matrixcube/components/prophet/schedulers"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"

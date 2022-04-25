@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/montanaflynn/stats"
@@ -370,31 +369,8 @@ func maxLoad(a, b *containerLoad) *containerLoad {
 	}
 }
 
-type containerLoadDetail struct {
-	LoadPred *containerLoadPred
-	HotPeers []*statistics.HotPeerStat
-}
-
-func (li *containerLoadDetail) toHotPeersStat() *statistics.HotPeersStat {
-	peers := make([]statistics.HotPeerStat, 0, len(li.HotPeers))
-	var totalBytesRate, totalKeysRate float64
-	for _, peer := range li.HotPeers {
-		if peer.HotDegree > 0 {
-			peers = append(peers, *peer.Clone())
-			totalBytesRate += peer.ByteRate
-			totalKeysRate += peer.KeyRate
-		}
-	}
-	return &statistics.HotPeersStat{
-		TotalBytesRate: math.Round(totalBytesRate),
-		TotalKeysRate:  math.Round(totalKeysRate),
-		Count:          len(peers),
-		Stats:          peers,
-	}
-}
-
 var (
-	sourceField   = log.SourceStoreField
-	targetField   = log.TargetStoreField
-	resourceField = log.ResourceField
+	sourceField = log.SourceStoreField
+	targetField = log.TargetStoreField
+	shardField  = log.ResourceField
 )
