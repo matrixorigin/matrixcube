@@ -57,7 +57,9 @@ func (ctx *applyContext) initialize(entry raftpb.Entry) {
 	case raftpb.EntryNormal:
 		// TODO: according to my current understanding, admin requests like splits
 		// are marked as EntryNormal. need to confirm this.
-		protoc.MustUnmarshal(&ctx.req, entry.Data)
+		if err := ctx.req.FastUnmarshal(entry.Data); err != nil {
+			panic(err)
+		}
 	case raftpb.EntryConfChange:
 		cc := raftpb.ConfChange{}
 		protoc.MustUnmarshal(&cc, entry.Data)

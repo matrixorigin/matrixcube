@@ -70,6 +70,16 @@ func GetSnapshotKey(shardID uint64, index uint64, key []byte) []byte {
 	return getIndexedIDKey(snapshotSuffix, shardID, index, key)
 }
 
+// GetSnapshotKeyLength returns SnapshotKey length
+func GetSnapshotKeyLength() int {
+	return indexedIDKeyLength
+}
+
+// GetHardStateKeyLength return HardStateKey length
+func GetHardStateKeyLength() int {
+	return indexedIDKeyLength
+}
+
 // GetHardStateKey returns key that used to store `raftpb.HardState`
 func GetHardStateKey(shardID uint64, replicaID uint64, key []byte) []byte {
 	key = getKeySlice(key, indexedIDKeyLength)
@@ -134,6 +144,16 @@ func GetRaftPrefix(shardID uint64) []byte {
 func GetMaxIndexKey(shardID uint64, key []byte) []byte {
 	key = getKeySlice(key, idKeyLength)
 	return getIDKey(maxIndexSuffix, shardID, key)
+}
+
+// GetMaxIndexKeyLength returns MaxIndexKey length
+func GetMaxIndexKeyLength() int {
+	return idKeyLength
+}
+
+// GetRaftLogKeyLength returns RaftLogKey length
+func GetRaftLogKeyLength() int {
+	return indexedIDKeyLength
 }
 
 // GetRaftLogKey returns key that used to store `raftpb.Entry`

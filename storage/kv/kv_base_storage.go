@@ -74,6 +74,10 @@ func (s *BaseStorage) Get(key []byte) ([]byte, error) {
 	return s.kv.Get(key)
 }
 
+func (s *BaseStorage) GetWithFunc(key []byte, fn func([]byte) error) error {
+	return s.kv.GetWithFunc(key, fn)
+}
+
 func (s *BaseStorage) Delete(key []byte, sync bool) error {
 	return s.kv.Delete(key, sync)
 }

@@ -25,6 +25,10 @@ for dir in ${DIRS}; do
 	pushd ${dir}
 		protoc  -I=.:$VENDOR_DIR --gogofast_out=plugins=grpc:.  *.proto
 		goimports -w *.pb.go
+
+		rm -rf fast.pb.go
+		cat *.pb.go | /usr/local/bin/fpm > fast.pb.go
+		goimports -w *.pb.go
 	popd
 done
 rm -rf $VENDOR_DIR/go.etcd.io/etcd/raft/v3/raftpb/raft.proto

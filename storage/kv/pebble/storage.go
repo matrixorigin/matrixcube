@@ -125,6 +125,21 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 	return v, nil
 }
 
+// GetWithFunc is similer to Get, but avoid clone the value
+func (s *Storage) GetWithFunc(key []byte, fn func([]byte) error) error {
+	value, closer, err := s.db.Get(key)
+	if err == pebble.ErrNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer closer.Close()
+	atomic.AddUint64(&s.stats.ReadKeys, 1)
+	atomic.AddUint64(&s.stats.ReadBytes, uint64(len(key)+len(value)))
+	return fn(value)
+}
+
 // Delete remove the key from the storage
 func (s *Storage) Delete(key []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
@@ -473,10 +488,22 @@ func (wb *writeBatch) Delete(key []byte) {
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)))
 }
 
+func (wb *writeBatch) DeleteDeferred(keyLen int, setter func(key []byte)) {
+	op := wb.batch.DeleteDeferred(keyLen)
+	defer op.Finish()
+	setter(op.Key)
+}
+
 func (wb *writeBatch) DeleteRange(fk []byte, lk []byte) {
 	if err := wb.batch.DeleteRange(fk, lk, nil); err != nil {
 		panic(err)
 	}
+}
+
+func (wb *writeBatch) DeleteRangeDeferred(startLen, endLen int, setter func(start, end []byte)) {
+	op := wb.batch.DeleteRangeDeferred(startLen, endLen)
+	defer op.Finish()
+	setter(op.Key, op.Value)
 }
 
 func (wb *writeBatch) Set(key []byte, value []byte) {
@@ -484,6 +511,12 @@ func (wb *writeBatch) Set(key []byte, value []byte) {
 		panic(err)
 	}
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)+len(value)))
+}
+
+func (wb *writeBatch) SetDeferred(keyLen, valueLen int, setter func(key, value []byte)) {
+	op := wb.batch.SetDeferred(keyLen, valueLen)
+	defer op.Finish()
+	setter(op.Key, op.Value)
 }
 
 func (wb *writeBatch) Reset() {
