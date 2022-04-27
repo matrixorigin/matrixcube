@@ -25,11 +25,13 @@ import (
 // Future is used to obtain response data synchronously.
 type Future struct {
 	value            []byte
+	req              rpcpb.Request
 	txnResponse      txnpb.TxnBatchResponse
 	batchGetResponse rpcpb.KVBatchGetResponse
 	err              error
 	ctx              context.Context
 	c                chan struct{}
+	cancel           func()
 
 	mu struct {
 		sync.Mutex
@@ -38,9 +40,22 @@ type Future struct {
 }
 
 func newFuture(ctx context.Context) *Future {
-	return &Future{
-		ctx: ctx,
-		c:   make(chan struct{}, 1),
+	f := acquireFuture()
+	f.ctx = ctx
+	return f
+}
+
+func (f *Future) reset() {
+	f.req.Reset()
+	f.value = nil
+	f.txnResponse.Reset()
+	f.batchGetResponse.Reset()
+	f.err = nil
+	f.ctx = nil
+	f.cancel = nil
+	select {
+	case <-f.c:
+	default:
 	}
 }
 
@@ -123,8 +138,11 @@ func (f *Future) Close() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	close(f.c)
+	if f.cancel != nil {
+		f.cancel()
+	}
 	f.mu.closed = true
+	releaseFuture(f)
 }
 
 func (f *Future) canRetry() bool {

@@ -26,9 +26,26 @@ var (
 	maxEndKey   = []byte{dataPrefix + 1}
 )
 
+// DataKeyLen return data key length
+func DataKeyLen(originKey []byte) int {
+	return len(originKey) + prefixLen
+}
+
+// EncodeDataKeyTo encode data key with data key prefix
+func EncodeDataKeyTo(originKey, dst []byte) []byte {
+	n := DataKeyLen(originKey)
+	if cap(dst) < n {
+		dst = make([]byte, n)
+	}
+
+	dst[0] = dataPrefix
+	copy(dst[dataPrefix:], originKey)
+	return dst
+}
+
 // EncodeDataKey encode data key with data key prefix
-func EncodeDataKey(keys []byte, buffer *buf.ByteBuf) []byte {
-	return doAppendPrefix(keys, dataPrefix, buffer)
+func EncodeDataKey(originKey []byte, buffer *buf.ByteBuf) []byte {
+	return doAppendPrefix(originKey, dataPrefix, buffer)
 }
 
 // DecodeDataKey returns the origin data key.
@@ -45,12 +62,46 @@ func EncodeShardStart(value []byte, buffer *buf.ByteBuf) []byte {
 	return doAppendPrefix(value, dataPrefix, buffer)
 }
 
-// EncodeShardEnd encode shard start key with data prefix
+// EncodeShardStartTo encode shard start key with data prefix
+func EncodeShardStartTo(value []byte, dst []byte) []byte {
+	n := DataKeyLen(value)
+	if cap(dst) < n {
+		dst = make([]byte, n)
+	}
+
+	if len(value) == 0 {
+		copy(dst, minStartKey)
+		return dst
+	}
+
+	dst[0] = dataPrefix
+	copy(dst[dataPrefix:], value)
+	return dst
+}
+
+// EncodeShardEnd encode shard end key with data prefix
 func EncodeShardEnd(value []byte, buffer *buf.ByteBuf) []byte {
 	if len(value) == 0 {
 		return maxEndKey
 	}
 	return doAppendPrefix(value, dataPrefix, buffer)
+}
+
+// EncodeShardEndTo encode shard end key with data prefix
+func EncodeShardEndTo(value []byte, dst []byte) []byte {
+	n := DataKeyLen(value)
+	if cap(dst) < n {
+		dst = make([]byte, n)
+	}
+
+	if len(value) == 0 {
+		copy(dst, maxEndKey)
+		return dst
+	}
+
+	dst[0] = dataPrefix
+	copy(dst[dataPrefix:], value)
+	return dst
 }
 
 // EncodeShardMetadataKey encode shard metadata key with metadata prefix

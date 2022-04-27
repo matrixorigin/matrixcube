@@ -17,10 +17,16 @@ package util
 type WriteBatch interface {
 	// Set set kv-value to the batch
 	Set([]byte, []byte)
+	// SetDeferred is similar to Set, but avoid clone key and value twice.
+	SetDeferred(keyLen, valueLen int, setter func(key, value []byte))
 	// Delete add delete key to the batch
 	Delete([]byte)
+	// DeleteDeferred is similar to Delete, but avoid clone key and value twice.
+	DeleteDeferred(keyLen int, setter func(key []byte))
 	// DeleteRange deletes the keys specified in the range
 	DeleteRange([]byte, []byte)
+	// DeleteRangeDeferred is similar to DeleteRange, but avoid clone key and value twice.
+	DeleteRangeDeferred(startLen, endLen int, setter func(start, end []byte))
 	// Reset reset the batch
 	Reset()
 	// Close close the batch

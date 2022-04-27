@@ -21,13 +21,11 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
@@ -115,8 +113,7 @@ type replica struct {
 
 	tickTotalCount   uint64
 	tickHandledCount uint64
-
-	feature storage.Feature
+	feature          storage.Feature
 }
 
 // createReplica called in:
@@ -465,7 +462,6 @@ func (pr *replica) doCampaign() error {
 }
 
 func (pr *replica) onReq(req rpcpb.Request, cb func(rpcpb.ResponseBatch)) error {
-	metric.IncComandCount(format.Uint64ToString(req.CustomType))
 	return pr.addRequest(newReqCtx(req, cb))
 }
 

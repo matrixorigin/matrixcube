@@ -27,72 +27,72 @@ func (lhs Timestamp) String() string {
 
 // IsEmpty returns a boolean value indicating whether the current timestamp
 // is an empty value.
-func (lhs Timestamp) IsEmpty() bool {
-	return lhs.PhysicalTime == 0 && lhs.LogicalTime == 0
+func (m Timestamp) IsEmpty() bool {
+	return m.PhysicalTime == 0 && m.LogicalTime == 0
 }
 
 // ToStdTime converts the HLC timestamp to a regular golang stdlib UTC
 // timestamp. The logical time component of the HLC is lost after the
 // conversion.
-func (lhs Timestamp) ToStdTime() time.Time {
-	return time.Unix(0, lhs.PhysicalTime).UTC()
+func (m Timestamp) ToStdTime() time.Time {
+	return time.Unix(0, m.PhysicalTime).UTC()
 }
 
 // Equal returns a boolean value indicating whether the lhs timestamp equals
 // to the rhs timestamp.
-func (lhs Timestamp) Equal(rhs Timestamp) bool {
-	return lhs.PhysicalTime == rhs.PhysicalTime &&
-		lhs.LogicalTime == rhs.LogicalTime
+func (m Timestamp) Equal(rhs Timestamp) bool {
+	return m.PhysicalTime == rhs.PhysicalTime &&
+		m.LogicalTime == rhs.LogicalTime
 }
 
 // Less returns a boolean value indicating whether the lhs timestamp is less
 // than the rhs timestamp value.
-func (lhs Timestamp) Less(rhs Timestamp) bool {
-	return lhs.PhysicalTime < rhs.PhysicalTime ||
-		(lhs.PhysicalTime == rhs.PhysicalTime && lhs.LogicalTime < rhs.LogicalTime)
+func (m Timestamp) Less(rhs Timestamp) bool {
+	return m.PhysicalTime < rhs.PhysicalTime ||
+		(m.PhysicalTime == rhs.PhysicalTime && m.LogicalTime < rhs.LogicalTime)
 }
 
 // Greater returns a boolean value indicating whether the lhs timestamp is
 // greater than the rhs timestamp value.
-func (lhs Timestamp) Greater(rhs Timestamp) bool {
-	return lhs.PhysicalTime > rhs.PhysicalTime ||
-		(lhs.PhysicalTime == rhs.PhysicalTime && lhs.LogicalTime > rhs.LogicalTime)
+func (m Timestamp) Greater(rhs Timestamp) bool {
+	return m.PhysicalTime > rhs.PhysicalTime ||
+		(m.PhysicalTime == rhs.PhysicalTime && m.LogicalTime > rhs.LogicalTime)
 }
 
 // LessEq returns a boolean value indicating whether the lhs timestamp is
 // less than or equal to the rhs timestamp value.
-func (lhs Timestamp) LessEq(rhs Timestamp) bool {
-	return lhs.Less(rhs) || lhs.Equal(rhs)
+func (m Timestamp) LessEq(rhs Timestamp) bool {
+	return m.Less(rhs) || m.Equal(rhs)
 }
 
 // GreaterEq returns a boolean value indicating whether the lhs timestamp is
 // greater than or equal to the rhs timestamp value.
-func (lhs Timestamp) GreaterEq(rhs Timestamp) bool {
-	return lhs.Greater(rhs) || lhs.Equal(rhs)
+func (m Timestamp) GreaterEq(rhs Timestamp) bool {
+	return m.Greater(rhs) || m.Equal(rhs)
 }
 
 // Next returns the smallest timestamp that is greater than the current
 // timestamp.
-func (lhs Timestamp) Next() Timestamp {
-	if lhs.LogicalTime == math.MaxUint32 {
-		return Timestamp{PhysicalTime: lhs.PhysicalTime + 1}
+func (m Timestamp) Next() Timestamp {
+	if m.LogicalTime == math.MaxUint32 {
+		return Timestamp{PhysicalTime: m.PhysicalTime + 1}
 	}
 
 	return Timestamp{
-		PhysicalTime: lhs.PhysicalTime,
-		LogicalTime:  lhs.LogicalTime + 1,
+		PhysicalTime: m.PhysicalTime,
+		LogicalTime:  m.LogicalTime + 1,
 	}
 }
 
 // Prev returns the smallest timestamp that is less than the current
 // timestamp.
-func (lhs Timestamp) Prev() Timestamp {
-	if lhs.LogicalTime == 0 {
-		return Timestamp{PhysicalTime: lhs.PhysicalTime - 1, LogicalTime: math.MaxUint32}
+func (m Timestamp) Prev() Timestamp {
+	if m.LogicalTime == 0 {
+		return Timestamp{PhysicalTime: m.PhysicalTime - 1, LogicalTime: math.MaxUint32}
 	}
 
 	return Timestamp{
-		PhysicalTime: lhs.PhysicalTime,
-		LogicalTime:  lhs.LogicalTime - 1,
+		PhysicalTime: m.PhysicalTime,
+		LogicalTime:  m.LogicalTime - 1,
 	}
 }

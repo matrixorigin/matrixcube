@@ -78,7 +78,7 @@ func (t *ShardTree) Update(shards ...metapb.Shard) {
 		}
 
 		item := shardItem{shard: shard}
-		result, ok := t.findLocked(item)
+		result, ok := t.findLocked(shard.Start)
 		if !ok {
 			result = item
 		}
@@ -111,7 +111,7 @@ func (t *ShardTree) Remove(shard metapb.Shard) bool {
 	t.Lock()
 	defer t.Unlock()
 
-	result, ok := t.findLocked(shardItem{shard: shard})
+	result, ok := t.findLocked(shard.Start)
 	if !ok || result.shard.ID != shard.ID {
 		return false
 	}
@@ -174,7 +174,7 @@ func (t *ShardTree) AscendRange(start, end []byte, handler func(shard *metapb.Sh
 		return
 	}
 
-	item, ok := t.findLocked(shardItem{shard: metapb.Shard{Start: start}})
+	item, ok := t.findLocked(start)
 	if !ok {
 		return
 	}
@@ -187,23 +187,23 @@ func (t *ShardTree) Search(key []byte) metapb.Shard {
 	t.RLock()
 	defer t.RUnlock()
 
-	result, ok := t.findLocked(shardItem{shard: metapb.Shard{Start: key}})
+	result, ok := t.findLocked(key)
 	if !ok {
 		return emptyShard
 	}
 	return result.shard
 }
 
-func (t *ShardTree) findLocked(item shardItem) (shardItem, bool) {
+func (t *ShardTree) findLocked(key []byte) (shardItem, bool) {
 	var result shardItem
 	var found bool
-	t.tree.DescendLessOrEqual(item, func(i btree.Item) bool {
+	t.tree.DescendLessOrEqual(shardItem{shard: metapb.Shard{Start: key}}, func(i btree.Item) bool {
 		result = i.(shardItem)
 		found = true
 		return false
 	})
 
-	if !found || !result.Contains(item.shard.Start) {
+	if !found || !result.Contains(key) {
 		return result, false
 	}
 	return result, true

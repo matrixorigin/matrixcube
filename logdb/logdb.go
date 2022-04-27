@@ -41,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/buf"
 )
 
 var (
@@ -65,8 +66,7 @@ type RaftState struct {
 // WorkerContext is the per worker context owned and used by each raft worker.
 // It contains write batch and buffers that can be reused across iterations.
 type WorkerContext struct {
-	idBuf []byte
-	wb    util.WriteBatch
+	wb util.WriteBatch
 }
 
 func (w *WorkerContext) Close() {
@@ -142,8 +142,7 @@ func (l *KVLogDB) Close() error {
 
 func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 	return &WorkerContext{
-		idBuf: make([]byte, 8),
-		wb:    l.ms.NewWriteBatch().(util.WriteBatch),
+		wb: l.ms.NewWriteBatch().(util.WriteBatch),
 	}
 }
 
@@ -199,23 +198,39 @@ func (l *KVLogDB) SaveRaftState(shardID uint64,
 		zap.Uint64("vote", rd.HardState.Vote))
 
 	if !raft.IsEmptyHardState(rd.HardState) {
-		v := protoc.MustMarshal(&rd.HardState)
-		ctx.wb.Set(keys.GetHardStateKey(shardID, replicaID, nil), v)
+		kLen, vLen := keys.GetHardStateKeyLength(), rd.HardState.Size()
+		ctx.wb.SetDeferred(kLen, vLen, func(key, value []byte) {
+			keys.GetHardStateKey(shardID, replicaID, key)
+			if _, err := rd.HardState.MarshalToSizedBuffer(value); err != nil {
+				panic(err)
+			}
+		})
 	}
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
-		ctx.wb.Set(keys.GetSnapshotKey(shardID, rd.Snapshot.Metadata.Index, nil),
-			protoc.MustMarshal(&rd.Snapshot))
+		kLen, vLen := keys.GetSnapshotKeyLength(), rd.Snapshot.Size()
+		ctx.wb.SetDeferred(kLen, vLen, func(key, value []byte) {
+			keys.GetSnapshotKey(shardID, rd.Snapshot.Metadata.Index, key)
+			if _, err := rd.Snapshot.MarshalToSizedBuffer(value); err != nil {
+				panic(err)
+			}
+		})
 	}
 
 	for _, e := range rd.Entries {
-		// TODO: use reusable buf here
-		d := protoc.MustMarshal(&e)
-		ctx.wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
+		kLen, vLen := keys.GetRaftLogKeyLength(), e.Size()
+		ctx.wb.SetDeferred(kLen, vLen, func(key, value []byte) {
+			keys.GetRaftLogKey(shardID, e.Index, key)
+			if _, err := e.MarshalToSizedBuffer(value); err != nil {
+				panic(err)
+			}
+		})
 	}
 	if len(rd.Entries) > 0 {
-		binary.BigEndian.PutUint64(ctx.idBuf, rd.Entries[len(rd.Entries)-1].Index)
-		ctx.wb.Set(keys.GetMaxIndexKey(shardID, nil), ctx.idBuf)
+		ctx.wb.SetDeferred(keys.GetMaxIndexKeyLength(), 8, func(key, value []byte) {
+			keys.GetMaxIndexKey(shardID, key)
+			buf.Uint64ToBytesTo(rd.Entries[len(rd.Entries)-1].Index, value)
+		})
 	}
 	return l.ms.Write(ctx.wb, true)
 }
@@ -226,15 +241,21 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	nextIndex := low
 	startKey := keys.GetRaftLogKey(shardID, low, nil)
 	if low+1 == high {
-		v, err := l.ms.Get(startKey)
+		e := raftpb.Entry{}
+		err := l.ms.GetWithFunc(startKey, func(b []byte) error {
+			if len(b) == 0 {
+				return raft.ErrUnavailable
+			}
+			protoc.MustUnmarshal(&e, b)
+			return nil
+		})
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(v) == 0 {
+		if e.Index == 0 {
 			return nil, 0, raft.ErrUnavailable
 		}
-		e := raftpb.Entry{}
-		protoc.MustUnmarshal(&e, v)
+
 		if e.Index != nextIndex {
 			l.logger.Fatal("raft log index not match",
 				log.ShardIDField(shardID),

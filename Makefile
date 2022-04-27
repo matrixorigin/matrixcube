@@ -147,6 +147,10 @@ all-tests: components-unit-test test-all-raftstore
 pb:
 	cd $(ROOT_DIR)/pb; ./gen.sh; cd $(ROOT_DIR)/pb; ./gen.sh
 
+.PHONY: fpm
+fpm:
+	rm -rf /usr/local/bin/fpm; go build -o /usr/local/bin/fpm $(ROOT_DIR)/util/fpm/*.go
+
 ###############################################################################
 # static checks
 ###############################################################################

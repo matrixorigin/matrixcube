@@ -33,6 +33,8 @@ type KVStore interface {
 	Set(key []byte, value []byte, sync bool) error
 	// Get returns the value associated with the key.
 	Get(key []byte) ([]byte, error)
+	// GetWithFunc is similer to Get, but avoid clone the value
+	GetWithFunc(key []byte, fn func(value []byte) error) error
 	// Delete removes the key-value pair specified by the key.
 	Delete(key []byte, sync bool) error
 	// Scan scans the key-value paire in the specified [start, end) range, the

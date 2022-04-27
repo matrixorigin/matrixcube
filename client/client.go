@@ -28,6 +28,27 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	futurePool = sync.Pool{
+		New: func() interface{} {
+			return &Future{
+				c: make(chan struct{}, 1),
+			}
+		},
+	}
+)
+
+func acquireFuture() *Future {
+	f := futurePool.Get().(*Future)
+	f.mu.closed = false
+	return f
+}
+
+func releaseFuture(f *Future) {
+	f.reset()
+	futurePool.Put(f)
+}
+
 // Option client option
 type Option func(*rpcpb.Request)
 
@@ -99,8 +120,11 @@ var _ Client = (*client)(nil)
 type client struct {
 	logger      *zap.Logger
 	shardsProxy raftstore.ShardsProxy
-	inflights   sync.Map // request id -> *Future
 
+	mu struct {
+		sync.RWMutex
+		inflights map[string]*Future
+	}
 }
 
 // NewClient creates and return a cube client
@@ -116,6 +140,7 @@ func NewClientWithOptions(options ...CreateOption) Client {
 		opt(c)
 	}
 	c.adjust()
+	c.mu.inflights = make(map[string]*Future, 1024)
 	return c
 }
 
@@ -172,19 +197,22 @@ func (s *client) AddLabelToShard(ctx context.Context, name, value string, shard 
 
 func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, cmdType rpcpb.CmdType, txnRequest *txnpb.TxnBatchRequest, opts ...Option) *Future {
 	f := newFuture(ctx)
-
-	req := rpcpb.Request{}
-	req.ID = uuid.NewV4().Bytes()
-	req.Type = cmdType
-	req.CustomType = requestType
-	req.Cmd = payload
-	req.TxnBatchRequest = txnRequest
+	f.req.ID = uuid.NewV4().Bytes()
+	f.req.Type = cmdType
+	f.req.CustomType = requestType
+	f.req.Cmd = payload
+	f.req.TxnBatchRequest = txnRequest
 	for _, opt := range opts {
-		opt(&req)
+		opt(&f.req)
 	}
-	s.inflights.Store(hack.SliceToString(req.ID), asyncCtx{f: f, req: req})
 
-	if len(req.Key) > 0 && req.ToShard > 0 {
+	id := hack.SliceToString(f.req.ID)
+	s.addInfight(id, f)
+	f.cancel = func() {
+		s.deleteInfight(id)
+	}
+
+	if len(f.req.Key) > 0 && f.req.ToShard > 0 {
 		s.logger.Fatal("route with key and route with shard cannot be set at the same time")
 	}
 	if _, ok := ctx.Deadline(); !ok {
@@ -192,21 +220,19 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 	}
 
 	if ce := s.logger.Check(zap.DebugLevel, "begin to send request"); ce != nil {
-		ce.Write(log.RequestIDField(req.ID))
+		ce.Write(log.RequestIDField(f.req.ID))
 	}
 
-	if err := s.shardsProxy.Dispatch(req); err != nil {
+	if err := s.shardsProxy.Dispatch(f.req); err != nil {
 		f.done(nil, nil, err)
 	}
 	return f
 }
 
 func (s *client) Retry(requestID []byte) (rpcpb.Request, bool) {
-	id := hack.SliceToString(requestID)
-	if v, ok := s.inflights.Load(id); ok {
-		c := v.(asyncCtx)
-		if c.f.canRetry() {
-			return c.req, true
+	if f, ok := s.getInfight(hack.SliceToString(requestID)); ok {
+		if f.canRetry() {
+			return f.req, true
 		}
 	}
 
@@ -219,9 +245,9 @@ func (s *client) done(resp rpcpb.Response) {
 	}
 
 	id := hack.SliceToString(resp.ID)
-	if c, ok := s.inflights.Load(hack.SliceToString(resp.ID)); ok {
-		s.inflights.Delete(id)
-		c.(asyncCtx).f.done(resp.Value, resp.TxnBatchResponse, nil)
+	if f, ok := s.getInfight(id); ok {
+		s.deleteInfight(id)
+		f.done(resp.Value, resp.TxnBatchResponse, nil)
 	} else {
 		if ce := s.logger.Check(zap.DebugLevel, "response skipped"); ce != nil {
 			ce.Write(log.RequestIDField(resp.ID), log.ReasonField("missing ctx"))
@@ -235,13 +261,27 @@ func (s *client) doneError(requestID []byte, err error) {
 	}
 
 	id := hack.SliceToString(requestID)
-	if c, ok := s.inflights.Load(id); ok {
-		s.inflights.Delete(id)
-		c.(asyncCtx).f.done(nil, nil, err)
+	if f, ok := s.getInfight(id); ok {
+		s.deleteInfight(id)
+		f.done(nil, nil, err)
 	}
 }
 
-type asyncCtx struct {
-	f   *Future
-	req rpcpb.Request
+func (s *client) addInfight(id string, f *Future) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mu.inflights[hack.SliceToString(f.req.ID)] = f
+}
+
+func (s *client) deleteInfight(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.mu.inflights, id)
+}
+
+func (s *client) getInfight(id string) (*Future, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.mu.inflights[id]
+	return v, ok
 }
