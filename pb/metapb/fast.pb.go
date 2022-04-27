@@ -1111,40 +1111,6 @@ func (m *StoreStats) FastUnmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 19:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OpLatencies", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMetapb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthMetapb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthMetapb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OpLatencies = append(m.OpLatencies, RecordPair{})
-			if err := m.OpLatencies[len(m.OpLatencies)-1].FastUnmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMetapb(dAtA[iNdEx:])
