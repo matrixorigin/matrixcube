@@ -138,7 +138,9 @@ func (f *Future) Close() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.cancel()
+	if f.cancel != nil {
+		f.cancel()
+	}
 	f.mu.closed = true
 	releaseFuture(f)
 }
