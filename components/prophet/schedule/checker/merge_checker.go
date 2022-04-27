@@ -105,12 +105,6 @@ func (m *MergeChecker) Check(res *core.CachedShard) []*operator.Operator {
 		return nil
 	}
 
-	// skip hot resource
-	if m.cluster.IsShardHot(res) {
-		checkerCounter.WithLabelValues("merge_checker", "hot-resource").Inc()
-		return nil
-	}
-
 	prev, next := m.cluster.GetAdjacentShards(res)
 
 	var target *core.CachedShard
@@ -152,7 +146,7 @@ func (m *MergeChecker) Check(res *core.CachedShard) []*operator.Operator {
 }
 
 func (m *MergeChecker) checkTarget(region, adjacent *core.CachedShard) bool {
-	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.GetID()) && !m.cluster.IsShardHot(adjacent) &&
+	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.GetID()) &&
 		AllowMerge(m.cluster, region, adjacent) && opt.IsShardHealthy(m.cluster, adjacent) &&
 		opt.IsShardReplicated(m.cluster, adjacent)
 }

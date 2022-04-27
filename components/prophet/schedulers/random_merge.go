@@ -163,8 +163,5 @@ func (s *randomMergeScheduler) allowMerge(cluster opt.Cluster, res, target *core
 	if !opt.IsShardReplicated(cluster, res) || !opt.IsShardReplicated(cluster, target) {
 		return false
 	}
-	if cluster.IsShardHot(res) || cluster.IsShardHot(target) {
-		return false
-	}
 	return checker.AllowMerge(cluster, res, target)
 }

@@ -34,14 +34,13 @@ import (
 const (
 	defaultStoreCapacity = 100 * (1 << 30) // 100GiB
 	defaultShardSize     = 96 * (1 << 20)  // 96MiB
-	mb                   = (1 << 20)       // 1MiB
+	mb                   = 1 << 20         // 1MiB
 )
 
 // Cluster is used to mock clusterInfo for test use.
 type Cluster struct {
 	*core.BasicCluster
 	*placement.RuleManager
-	*statistics.HotStat
 	*config.PersistOptions
 	storage       storage.Storage
 	ID            uint64
@@ -55,7 +54,6 @@ func NewCluster(opts *config.PersistOptions) *Cluster {
 	clus := &Cluster{
 		storage:               storage.NewTestStorage(),
 		BasicCluster:          core.NewBasicCluster(nil),
-		HotStat:               statistics.NewHotStat(),
 		PersistOptions:        opts,
 		suspectShards:         map[uint64]struct{}{},
 		supportJointConsensus: true,
@@ -104,11 +102,6 @@ func (mc *Cluster) LoadShard(resID uint64, followerIds ...uint64) {
 	mc.PutShard(r)
 }
 
-// GetStoresLoads gets stores load statistics.
-func (mc *Cluster) GetStoresLoads() map[uint64][]float64 {
-	return mc.HotStat.GetStoresLoads()
-}
-
 // GetStoreShardCount gets resource count with a given container.
 func (mc *Cluster) GetStoreShardCount(groupKey string, containerID uint64) int {
 	return mc.Shards.GetStoreShardCount(groupKey, containerID)
@@ -117,32 +110,6 @@ func (mc *Cluster) GetStoreShardCount(groupKey string, containerID uint64) int {
 // GetStore gets a container with a given container ID.
 func (mc *Cluster) GetStore(containerID uint64) *core.CachedStore {
 	return mc.Stores.GetStore(containerID)
-}
-
-// IsShardHot checks if the resource is hot.
-func (mc *Cluster) IsShardHot(res *core.CachedShard) bool {
-	return mc.HotCache.IsShardHot(res, mc.GetHotShardCacheHitsThreshold())
-}
-
-// ShardReadStats returns hot Shard's read stats.
-// The result only includes peers that are hot enough.
-func (mc *Cluster) ShardReadStats() map[uint64][]*statistics.HotPeerStat {
-	return mc.HotCache.ShardStats(statistics.ReadFlow, mc.GetHotShardCacheHitsThreshold())
-}
-
-// ShardWriteStats returns hot Shard's write stats.
-// The result only includes peers that are hot enough.
-func (mc *Cluster) ShardWriteStats() map[uint64][]*statistics.HotPeerStat {
-	return mc.HotCache.ShardStats(statistics.WriteFlow, mc.GetHotShardCacheHitsThreshold())
-}
-
-// RandHotShardFromStore random picks a hot resource in specify container.
-func (mc *Cluster) RandHotShardFromStore(containerID uint64, kind statistics.FlowKind) *core.CachedShard {
-	r := mc.HotCache.RandHotShardFromStore(containerID, kind, mc.GetHotShardCacheHitsThreshold())
-	if r == nil {
-		return nil
-	}
-	return mc.GetShard(r.ShardID)
 }
 
 // AllocPeer allocs a new peer on a container.
@@ -334,59 +301,6 @@ func (mc *Cluster) AddLeaderShardWithRange(resID uint64, startKey string, endKey
 	mc.PutShard(r)
 }
 
-// AddLeaderShardWithReadInfo adds resource with specified leader, followers and read info.
-func (mc *Cluster) AddLeaderShardWithReadInfo(
-	resID uint64, leaderID uint64,
-	readBytes, readKeys uint64,
-	reportInterval uint64,
-	followerIds []uint64, filledNums ...int) []*statistics.HotPeerStat {
-	r := mc.newMockCachedShard(resID, leaderID, followerIds...)
-	r = r.Clone(core.SetReadBytes(readBytes))
-	r = r.Clone(core.SetReadKeys(readKeys))
-	r = r.Clone(core.SetReportInterval(reportInterval))
-	filledNum := mc.HotCache.GetFilledPeriod(statistics.ReadFlow)
-	if len(filledNums) > 0 {
-		filledNum = filledNums[0]
-	}
-
-	var items []*statistics.HotPeerStat
-	for i := 0; i < filledNum; i++ {
-		items = mc.HotCache.CheckRead(r)
-		for _, item := range items {
-			mc.HotCache.Update(item)
-		}
-	}
-	mc.PutShard(r)
-	return items
-}
-
-// AddLeaderShardWithWriteInfo adds resource with specified leader, followers and write info.
-func (mc *Cluster) AddLeaderShardWithWriteInfo(
-	resID uint64, leaderID uint64,
-	writtenBytes, writtenKeys uint64,
-	reportInterval uint64,
-	followerIds []uint64, filledNums ...int) []*statistics.HotPeerStat {
-	r := mc.newMockCachedShard(resID, leaderID, followerIds...)
-	r = r.Clone(core.SetWrittenBytes(writtenBytes))
-	r = r.Clone(core.SetWrittenKeys(writtenKeys))
-	r = r.Clone(core.SetReportInterval(reportInterval))
-
-	filledNum := mc.HotCache.GetFilledPeriod(statistics.WriteFlow)
-	if len(filledNums) > 0 {
-		filledNum = filledNums[0]
-	}
-
-	var items []*statistics.HotPeerStat
-	for i := 0; i < filledNum; i++ {
-		items = mc.HotCache.CheckWrite(r)
-		for _, item := range items {
-			mc.HotCache.Update(item)
-		}
-	}
-	mc.PutShard(r)
-	return items
-}
-
 // UpdateStoreLeaderWeight updates container leader weight.
 func (mc *Cluster) UpdateStoreLeaderWeight(containerID uint64, weight float64) {
 	container := mc.GetStore(containerID)
@@ -482,7 +396,6 @@ func (mc *Cluster) UpdateStorageWrittenStats(containerID, bytesWritten, keysWrit
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 
@@ -496,7 +409,6 @@ func (mc *Cluster) UpdateStorageReadStats(containerID, bytesWritten, keysWritten
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 
@@ -510,7 +422,6 @@ func (mc *Cluster) UpdateStorageWrittenBytes(containerID uint64, bytesWritten ui
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 
@@ -524,7 +435,6 @@ func (mc *Cluster) UpdateStorageReadBytes(containerID uint64, bytesRead uint64) 
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 
@@ -538,7 +448,6 @@ func (mc *Cluster) UpdateStorageWrittenKeys(containerID uint64, keysWritten uint
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 
@@ -552,7 +461,6 @@ func (mc *Cluster) UpdateStorageReadKeys(containerID uint64, keysRead uint64) {
 	interval := &metapb.TimeInterval{Start: uint64(now - statistics.StoreHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newStore := container.Clone(core.SetStoreStats(newStats))
-	mc.Set(containerID, newStats)
 	mc.PutStore(newStore)
 }
 

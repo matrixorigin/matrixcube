@@ -122,7 +122,7 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 		for _, groupKey := range cluster.GetScheduleGroupKeys() {
 			if res := cluster.RandLeaderShard(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
 				cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
-					resourceField(res.Meta.GetID()))
+					shardField(res.Meta.GetID()))
 				excludeStores := make(map[uint64]struct{})
 				for _, p := range res.GetDownPeers() {
 					excludeStores[p.GetReplica().StoreID] = struct{}{}
@@ -137,7 +137,7 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 					RandomPick()
 				if target == nil {
 					cluster.GetLogger().Debug("label scheduler no target found for resource",
-						resourceField(res.Meta.GetID()))
+						shardField(res.Meta.GetID()))
 					schedulerCounter.WithLabelValues(s.GetName(), "no-target").Inc()
 					continue
 				}

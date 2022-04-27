@@ -181,8 +181,6 @@ message StoreStats {
     repeated RecordPair   readIORates   = 17 [(gogoproto.nullable) = false];
     // Threads' write disk I/O rates in the store
     repeated RecordPair   writeIORates  = 18 [(gogoproto.nullable) = false];
-    // Operations' latencies in the store
-    repeated RecordPair   opLatencies   = 19 [(gogoproto.nullable) = false];
 }
 
 // RecordPair record pair

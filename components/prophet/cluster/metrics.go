@@ -27,7 +27,7 @@ var (
 			Help:      "Status of the cluster.",
 		}, []string{"name"})
 
-	resourceEventCounter = prometheus.NewCounterVec(
+	shardEventCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "prophet",
 			Subsystem: "cluster",
@@ -42,14 +42,6 @@ var (
 			Name:      "status",
 			Help:      "Status of the scheduler.",
 		}, []string{"kind", "type"})
-
-	hotSpotStatusGauge = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "prophet",
-			Subsystem: "hotspot",
-			Name:      "status",
-			Help:      "Status of the hotspot.",
-		}, []string{"address", "container", "type"})
 
 	patrolCheckShardsGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -84,10 +76,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(resourceEventCounter)
+	prometheus.MustRegister(shardEventCounter)
 	prometheus.MustRegister(healthStatusGauge)
 	prometheus.MustRegister(schedulerStatusGauge)
-	prometheus.MustRegister(hotSpotStatusGauge)
 	prometheus.MustRegister(patrolCheckShardsGauge)
 	prometheus.MustRegister(clusterStateCPUGauge)
 	prometheus.MustRegister(clusterStateCurrent)

@@ -76,7 +76,7 @@ func TestStatEntriesAppend(t *testing.T) {
 	assert.NotNil(t, cst)
 	ThreadsCollected = []string{"cpu:"}
 
-	// fill 2*N entries, 2 entries for each container
+	// fill 2*N entries, 2 entries for each store
 	for i := 0; i < 2*N; i++ {
 		entry := &StatEntry{
 			StoreID:   uint64(i % N),
@@ -85,7 +85,7 @@ func TestStatEntriesAppend(t *testing.T) {
 		assert.True(t, cst.Append(entry))
 	}
 
-	// use i as the container ID
+	// use i as the store ID
 	for i := 0; i < N; i++ {
 		assert.Equal(t, float64(20), cst.stats[uint64(i)].CPU())
 	}
@@ -100,7 +100,7 @@ func TestStatEntriesCPU(t *testing.T) {
 	usages := cpu(20)
 	ThreadsCollected = []string{"cpu:"}
 
-	// 2 entries per container
+	// 2 entries per store
 	for i := 0; i < 2*N; i++ {
 		entry := &StatEntry{
 			StoreID:   uint64(i % N),

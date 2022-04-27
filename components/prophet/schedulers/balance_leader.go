@@ -252,7 +252,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 		rebalanceLeaderField,
 		l.scheduleField,
 		sourceField(sourceID),
-		resourceField(resource.Meta.GetID()))
+		shardField(resource.Meta.GetID()))
 	schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 	return nil
 }
@@ -278,7 +278,7 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 			rebalanceLeaderField,
 			l.scheduleField,
 			targetField(leaderStoreID),
-			resourceField(resource.Meta.GetID()))
+			shardField(resource.Meta.GetID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader").Inc()
 		return nil
 	}
@@ -294,7 +294,7 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 		cluster.GetLogger().Debug("selected random follower resource has no target container",
 			rebalanceLeaderField,
 			l.scheduleField,
-			resourceField(resource.Meta.GetID()))
+			shardField(resource.Meta.GetID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 		return nil
 	}
@@ -306,15 +306,6 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 // no new operator need to be created, otherwise create an operator that transfers
 // the leader from the source container to the target container for the resource.
 func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.CachedShard, source, target *core.CachedStore) []*operator.Operator {
-	if cluster.IsShardHot(res) {
-		cluster.GetLogger().Debug("ignore hot resource",
-			rebalanceLeaderField,
-			l.scheduleField,
-			resourceField(res.Meta.GetID()))
-		schedulerCounter.WithLabelValues(l.GetName(), "resource-hot").Inc()
-		return nil
-	}
-
 	sourceID := source.Meta.GetID()
 	targetID := target.Meta.GetID()
 

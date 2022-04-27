@@ -28,12 +28,12 @@ import (
 //
 // The target of cluster state statistics is to statistic the load state
 // of a cluster given a time duration. The basic idea is to collect all
-// the load information from every container at the same time duration and calculates
+// the load information from every store at the same time duration and calculates
 // the load for the whole cluster.
 //
 // Now we just support CPU as the measurement of the load. The CPU information
-// is reported by each container with a heartbeat message which sending to PD every
-// interval(10s). There is no synchronization between each container, so the containers
+// is reported by each store with a heartbeat message which sending to PD every
+// interval(10s). There is no synchronization between each store, so the stores
 // could not send heartbeat messages at the same time, and the collected
 // information has time shift.
 //
@@ -44,29 +44,29 @@ import (
 // S2 ---------------------------|------------------------->
 // S3 ---------------------------------|------------------->
 //
-// The max time shift between 2 containers is 2*interval which is 20s here, and
+// The max time shift between 2 stores is 2*interval which is 20s here, and
 // this is also the max time shift for the whole cluster. We assume that the
 // time of starting to heartbeat is randomized, so the average time shift of
 // the cluster is 10s. This is acceptable for statistics.
 //
 // Implementation
 //
-// Keep a 5min history statistics for each container, the history is saved in a
+// Keep a 5min history statistics for each store, the history is saved in a
 // circle array which evicting the oldest entry in a FIFO strategy. All the
-// containers' histories combines into the cluster's history. So we can calculate
+// stores' histories combines into the cluster's history. So we can calculate
 // any load value within 5 minutes. The algorithm for calculate is simple,
-// Iterate each container's history from the latest entry with the same step and
+// Iterate each store's history from the latest entry with the same step and
 // calculate the average CPU usage for the cluster.
 //
 // For example.
 // To calculate the average load of the cluster within 3 minutes, start from the
-// tail of circle array(which containers the history), and backward 18 steps to
+// tail of circle array(which stores the history), and backward 18 steps to
 // collect all the statistics that being accessed, then calculates the average
-// CPU usage for this container. The average of all the containers CPU usage is the
+// CPU usage for this store. The average of all the stores CPU usage is the
 // CPU usage of the whole cluster.
 //
 
-// LoadState indicates the load of a cluster or container
+// LoadState indicates the load of a cluster or store
 type LoadState int
 
 // LoadStates that supported, None means no state determined
@@ -98,19 +98,19 @@ func (s LoadState) String() string {
 var ThreadsCollected = []string{"grpc-server-"}
 
 // NumberOfEntries is the max number of StatEntry that preserved,
-// it is the history of a container's heartbeats. The interval of container
+// it is the history of a store's heartbeats. The interval of store
 // heartbeats from TiKV is 10s, so we can preserve 30 entries per
-// container which is about 5 minutes.
+// store which is about 5 minutes.
 const NumberOfEntries = 30
 
 // StaleEntriesTimeout is the time before an entry is deleted as stale.
 // It is about 30 entries * 10s
 const StaleEntriesTimeout = 300 * time.Second
 
-// StatEntry is an entry of container statistics
+// StatEntry is an entry of store statistics
 type StatEntry metapb.StoreStats
 
-// CPUEntries saves a history of container statistics
+// CPUEntries saves a history of store statistics
 type CPUEntries struct {
 	cpu     movingaverage.MovingAvg
 	updated time.Time
@@ -157,11 +157,11 @@ func (s *CPUEntries) CPU() float64 {
 	return s.cpu.Get()
 }
 
-// StatEntries saves the StatEntries for each container in the cluster
+// StatEntries saves the StatEntries for each store in the cluster
 type StatEntries struct {
 	m     sync.RWMutex
 	stats map[uint64]*CPUEntries
-	size  int   // size of entries to keep for each container
+	size  int   // size of entries to keep for each store
 	total int64 // total of StatEntry appended
 	ttl   time.Duration
 }
@@ -175,7 +175,7 @@ func NewStatEntries(size int) *StatEntries {
 	}
 }
 
-// Append an container StatEntry
+// Append a store StatEntry
 func (cst *StatEntries) Append(stat *StatEntry) bool {
 	cst.m.Lock()
 	defer cst.m.Unlock()
@@ -183,11 +183,11 @@ func (cst *StatEntries) Append(stat *StatEntry) bool {
 	cst.total++
 
 	// append the entry
-	containerID := stat.StoreID
-	entries, ok := cst.stats[containerID]
+	storeID := stat.StoreID
+	entries, ok := cst.stats[storeID]
 	if !ok {
 		entries = NewCPUEntries(cst.size)
-		cst.stats[containerID] = entries
+		cst.stats[storeID] = entries
 	}
 
 	return entries.Append(stat, ThreadsCollected...)
@@ -229,14 +229,14 @@ func (cst *StatEntries) CPU(excludes ...uint64) float64 {
 	return sum / float64(len(cst.stats))
 }
 
-// State collects information from container heartbeat
+// State collects information from store heartbeat
 // and calculates the load state of the cluster
 type State struct {
 	cst *StatEntries
 }
 
 // NewState return the LoadState object which collects
-// information from container heartbeats and gives the current state of
+// information from store heartbeats and gives the current state of
 // the cluster
 func NewState() *State {
 	return &State{
@@ -244,7 +244,7 @@ func NewState() *State {
 	}
 }
 
-// State returns the state of the cluster, excludes is the list of container ID
+// State returns the state of the cluster, excludes is the list of store ID
 // to be excluded
 func (cs *State) State(excludes ...uint64) LoadState {
 	// Return LoadStateNone if there is not enough heartbeats
@@ -272,7 +272,7 @@ func (cs *State) State(excludes ...uint64) LoadState {
 	return LoadStateNone
 }
 
-// Collect statistics from container heartbeat
+// Collect statistics from store heartbeat
 func (cs *State) Collect(stat *StatEntry) {
 	cs.cst.Append(stat)
 }

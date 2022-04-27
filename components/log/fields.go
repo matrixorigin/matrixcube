@@ -151,7 +151,7 @@ func RequestsField(key string, reqs []rpcpb.Request) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// RaftMessageField return formated raft message zap string field
+// RaftMessageField return formatted raft message zap string field
 func RaftMessageField(key string, msg metapb.RaftMessage) zap.Field {
 	var info bytes.Buffer
 
@@ -166,28 +166,28 @@ func RaftMessageField(key string, msg metapb.RaftMessage) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ShardField return formated shard zap string field
+// ShardField return formatted shard zap string field
 func ShardField(key string, shard metapb.Shard) zap.Field {
 	var info bytes.Buffer
 	appendShard(shard, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// EpochField return formated epoch zap string field
+// EpochField return formatted epoch zap string field
 func EpochField(key string, epoch metapb.ShardEpoch) zap.Field {
 	var info bytes.Buffer
 	doAppendShardEpoch(epoch, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// RaftRequestField return formated raft request zap string field
+// RaftRequestField return formatted raft request zap string field
 func RaftRequestField(key string, req *rpcpb.Request) zap.Field {
 	var info bytes.Buffer
 	appendRaftRequest(req, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// RaftResponseField return formated raft response zap string field
+// RaftResponseField return formatted raft response zap string field
 func RaftResponseField(key string, resp *rpcpb.Response) zap.Field {
 	var info bytes.Buffer
 	appendRaftResponse(resp, &info, true)
@@ -208,14 +208,14 @@ func ReplicaField(key string, Replica metapb.Replica) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangeFieldWithHeartbeatResp return formated change Replica zap string field
+// ConfigChangeFieldWithHeartbeatResp return formatted change Replica zap string field
 func ConfigChangeFieldWithHeartbeatResp(key string, req rpcpb.ShardHeartbeatRsp) zap.Field {
 	var info bytes.Buffer
 	doAppendConfigChange(req.ConfigChange.ChangeType, req.ConfigChange.Replica, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangesFieldWithHeartbeatResp return formated change Replica zap string field
+// ConfigChangesFieldWithHeartbeatResp return formatted change Replica zap string field
 func ConfigChangesFieldWithHeartbeatResp(key string, req rpcpb.ShardHeartbeatRsp) zap.Field {
 	var info bytes.Buffer
 	info.WriteString("[")
@@ -229,14 +229,14 @@ func ConfigChangesFieldWithHeartbeatResp(key string, req rpcpb.ShardHeartbeatRsp
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangeField return formated change Replica zap string field
+// ConfigChangeField return formatted change Replica zap string field
 func ConfigChangeField(key string, req *rpcpb.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
 	doAppendConfigChange(req.ChangeType, req.Replica, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangesField return formated change Replica zap string field
+// ConfigChangesField return formatted change Replica zap string field
 func ConfigChangesField(key string, changes []rpcpb.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
 	info.WriteString("[")
@@ -250,7 +250,7 @@ func ConfigChangesField(key string, changes []rpcpb.ConfigChangeRequest) zap.Fie
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// TxnIDField return formated TxnID zap string field
+// TxnIDField return formatted TxnID zap string field
 func TxnIDField(txnID []byte) zap.Field {
 	return HexField("txn-id", txnID)
 }
