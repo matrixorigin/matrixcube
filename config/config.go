@@ -268,6 +268,8 @@ type RaftConfig struct {
 	SendRaftBatchSize uint64 `toml:"send-raft-batch-size"`
 	// RaftLog raft log 配置
 	RaftLog RaftLogConfig `toml:"raft-log"`
+	// LimitRequestBytesPerShard request's bytes per second limit
+	LimitRequestBytesPerShard typeutil.ByteSize `toml:"send-raft-batch-size"`
 }
 
 // GetElectionTimeoutDuration returns ElectionTimeoutTicks * TickInterval
@@ -303,6 +305,10 @@ func (c *RaftConfig) adjust() {
 
 	if c.MaxEntryBytes == 0 {
 		c.MaxEntryBytes = typeutil.ByteSize(defaultMaxEntryBytes)
+	}
+
+	if c.LimitRequestBytesPerShard == 0 {
+		c.LimitRequestBytesPerShard = typeutil.ByteSize(1 << 30)
 	}
 
 	(&c.RaftLog).adjust()

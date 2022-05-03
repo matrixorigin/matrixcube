@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/juju/ratelimit"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -90,6 +91,8 @@ type replica struct {
 	pushedIndex uint64
 	stats       *replicaStats
 	metrics     localMetrics
+
+	limiter *ratelimit.Bucket
 
 	initialized bool
 	closedC     chan struct{}
@@ -166,6 +169,8 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		unloadedC:         make(chan struct{}),
 		destroyedC:        make(chan struct{}),
 		committedIndexes:  make(map[uint64]uint64),
+		limiter: ratelimit.NewBucketWithRate(float64(store.cfg.Raft.LimitRequestBytesPerShard),
+			int64(store.cfg.Raft.LimitRequestBytesPerShard)),
 	}
 	// we are not guaranteed to have a prophet client in tests
 	if store.pd != nil {

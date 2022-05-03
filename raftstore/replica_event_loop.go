@@ -17,11 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
-	"go.uber.org/zap"
-
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
@@ -30,6 +25,10 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/uuid"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
 )
 
 const (
@@ -96,6 +95,7 @@ func (pr *replica) addAdminRequest(adminType rpcpb.InternalCmd, request protoc.P
 }
 
 func (pr *replica) addRequest(req reqCtx) error {
+	pr.limiter.Wait(int64(req.req.Size()))
 	if err := pr.requests.Put(req); err != nil {
 		return err
 	}
