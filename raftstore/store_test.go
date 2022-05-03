@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/juju/ratelimit"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -406,6 +407,7 @@ func TestDoShardHeartbeatRsp(t *testing.T) {
 		defer cancel()
 		s.workerPool.close() // avoid admin request real handled by event worker
 		pr := c.fn(s)
+		pr.limiter = ratelimit.NewBucketWithRate(1<<30, 1<<30)
 		pr.sm = &stateMachine{}
 		pr.sm.metadataMu.shard = Shard{}
 		s.doShardHeartbeatRsp(c.rsp)
