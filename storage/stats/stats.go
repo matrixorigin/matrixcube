@@ -13,6 +13,10 @@
 
 package stats
 
+import (
+	"sync/atomic"
+)
+
 // Stats storage stats
 type Stats struct {
 	WrittenKeys  uint64
@@ -21,4 +25,16 @@ type Stats struct {
 	ReadBytes    uint64
 	// SyncCount number of `Sync` method called
 	SyncCount uint64
+}
+
+// Copy returns another instance for rough statistics.
+// https://github.com/matrixorigin/matrixone/issues/2447
+func (s *Stats) Copy() Stats {
+	return Stats{
+		WrittenKeys:  atomic.LoadUint64(&s.WrittenKeys),
+		WrittenBytes: atomic.LoadUint64(&s.WrittenBytes),
+		ReadKeys:     atomic.LoadUint64(&s.ReadKeys),
+		ReadBytes:    atomic.LoadUint64(&s.ReadBytes),
+		SyncCount:    atomic.LoadUint64(&s.SyncCount),
+	}
 }
