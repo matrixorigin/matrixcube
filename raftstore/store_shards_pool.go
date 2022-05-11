@@ -74,7 +74,7 @@ type dynamicShardsPool struct {
 }
 
 func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShardsPool {
-	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: log.Adjust(logger).Named("shard-pool")}
+	p := &dynamicShardsPool{pdC: make(chan struct{}), cfg: cfg, logger: log.Adjust(logger).Named("shard-pool")}
 	p.factory = p.shardFactory
 	p.stopper = stop.NewStopper("shards-pool", stop.WithLogger(p.logger))
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
@@ -91,9 +91,6 @@ func (dsp *dynamicShardsPool) setProphetClient(pd prophet.Client) {
 }
 
 func (dsp *dynamicShardsPool) waitProphetClientSetted() {
-	if dsp.pd != nil {
-		return
-	}
 	<-dsp.pdC
 }
 
