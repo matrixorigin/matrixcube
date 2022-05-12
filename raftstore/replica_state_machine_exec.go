@@ -125,7 +125,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 				}
 			} else {
 				err := errors.Wrapf(ErrReplicaDuplicated,
-					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.StoreID)
+					"shardID %d, replicaID %d found on store %d", res.ID, p.ID, replica.StoreID)
 				return rpcpb.ResponseBatch{}, err
 			}
 			p.Role = metapb.ReplicaRole_Voter
@@ -141,10 +141,15 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		if p != nil {
 			if p.ID != replica.ID {
 				err := errors.Wrapf(ErrReplicaNotFound,
-					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.StoreID)
+					"shardID %d, replicaID %d found on store %d", res.ID, p.ID, replica.StoreID)
 				return rpcpb.ResponseBatch{}, err
 			} else {
 				removeReplica(&res, replica.StoreID)
+			}
+
+			lease := d.getLease()
+			if lease.GetReplicaID() == p.ID {
+				d.updateLease(nil)
 			}
 
 			if d.replica.ID == replica.ID {
@@ -156,7 +161,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 			}
 		} else {
 			err := errors.Wrapf(ErrReplicaNotFound,
-				"shardID %d, replicaID %d found on container %d",
+				"shardID %d, replicaID %d found on store %d",
 				res.ID,
 				replica.ID, replica.StoreID)
 			return rpcpb.ResponseBatch{}, err

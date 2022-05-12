@@ -130,6 +130,7 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 			},
 		}
 		sm.updateShard(shard)
+		sm.updateLease(&metapb.EpochLease{Epoch: 1, ReplicaID: shard.Replicas[0].ID})
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
 			rpcpb.CmdConfigChange,
@@ -157,6 +158,11 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 			require.Equal(t, 1, len(shard.Replicas))
 		}
 
+		if removeReplica.ID == 100 {
+			assert.Nil(t, sm.getLease())
+		} else {
+			assert.Equal(t, &metapb.EpochLease{Epoch: 1, ReplicaID: shard.Replicas[0].ID}, sm.getLease())
+		}
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
