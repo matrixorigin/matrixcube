@@ -553,6 +553,13 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 			res.GetKeysRead() != origin.GetKeysRead() {
 			saveCache = true
 		}
+		if res.GetLease().GetEpoch() > origin.GetLease().GetEpoch() ||
+			res.GetLease() == nil {
+			// If res.GetLease() is nil means all replicas restart, and no lease. So we need
+			// reset shard's lease to nil, and waiting for scheduling to create lease.
+			// If lease changed, lease epoch need save to cache.
+			saveCache = true
+		}
 	}
 
 	if !saveKV && !saveCache && !isNew {
@@ -657,7 +664,10 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 				zap.Uint64("from", from),
 				zap.Uint64("to", res.GetLeader().GetStoreID()))
 		}
-		c.addNotifyLocked(event.NewShardEvent(res.Meta, res.GetLeader().GetID(), false, false))
+		c.addNotifyLocked(event.NewShardEvent(res.Meta,
+			res.GetLeader().GetID(),
+			res.GetLease(),
+			false, false))
 	}
 	if saveCache {
 		c.addNotifyLocked(event.NewShardStatsEvent(res.GetStat()))
@@ -1228,6 +1238,11 @@ func (c *RaftCluster) takeShardStoresLocked(res *core.CachedShard) []*core.Cache
 // AllocID allocs ID.
 func (c *RaftCluster) AllocID() (uint64, error) {
 	return c.storage.AllocID()
+}
+
+// NextShardEpoch alloc next shard epoch
+func (c *RaftCluster) NextShardEpoch(id uint64) (uint64, error) {
+	return c.storage.AllocShardLeaseEpoch(id)
 }
 
 // ChangedEventNotifier changedEventNotifier

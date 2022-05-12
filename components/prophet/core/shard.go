@@ -45,6 +45,7 @@ type CachedShard struct {
 	learners        []metapb.Replica
 	voters          []metapb.Replica
 	leader          *metapb.Replica
+	lease           *metapb.EpochLease
 	downReplicas    replicaStatsSlice
 	pendingReplicas replicaSlice
 	stats           metapb.ShardStats
@@ -108,6 +109,7 @@ func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta metapb.Shard) *C
 		downReplicas:    heartbeat.GetDownReplicas(),
 		pendingReplicas: heartbeat.GetPendingReplicas(),
 		stats:           heartbeat.Stats,
+		lease:           heartbeat.Lease,
 	}
 	shard.stats.ApproximateSize = shardSize
 
@@ -152,6 +154,13 @@ func (r *CachedShard) Clone(opts ...ShardCreateOption) *CachedShard {
 		opt(res)
 	}
 	fillVoterAndLearner(res)
+
+	if r.lease != nil {
+		res.lease = &metapb.EpochLease{
+			Epoch:     r.lease.Epoch,
+			ReplicaID: r.lease.ReplicaID,
+		}
+	}
 	return res
 }
 
@@ -166,6 +175,11 @@ func (r *CachedShard) IsDestroyState() bool {
 	defer r.RUnlock()
 	return r.Meta.GetState() == metapb.ShardState_Destroyed ||
 		r.Meta.GetState() == metapb.ShardState_Destroying
+}
+
+// GetLease returns lease of the shard
+func (r *CachedShard) GetLease() *metapb.EpochLease {
+	return r.lease
 }
 
 // GetTerm returns the current term of the shard

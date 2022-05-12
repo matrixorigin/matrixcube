@@ -299,6 +299,10 @@ func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
 }
 
+func (pr *replica) getLease() *EpochLease {
+	return pr.sm.getLease()
+}
+
 func (pr *replica) getPersistentLogIndex() (uint64, error) {
 	return pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
 }

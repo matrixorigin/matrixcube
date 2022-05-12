@@ -32,7 +32,6 @@ type Generator interface {
 }
 
 const (
-	idBatch         uint64 = 512
 	UninitializedID uint64 = 0
 )
 
@@ -42,6 +41,7 @@ type etcdGenerator struct {
 
 	client   *clientv3.Client
 	leadship *election.Leadership
+	idBatch  uint64
 	idPath   string
 	base     uint64
 	end      uint64
@@ -53,10 +53,21 @@ func NewEtcdGenerator(
 	client *clientv3.Client,
 	leadship *election.Leadership,
 ) Generator {
+	return NewEtcdGeneratorWithPathAndBatch(fmt.Sprintf("%s/meta/id", rootPath), 512, client, leadship)
+}
+
+// NewEtcdGenerator returns alloc ID allocator based on etcd.
+func NewEtcdGeneratorWithPathAndBatch(
+	idPath string,
+	idBatch uint64,
+	client *clientv3.Client,
+	leadship *election.Leadership,
+) Generator {
 	return &etcdGenerator{
+		idBatch:  idBatch,
 		client:   client,
 		leadship: leadship,
-		idPath:   fmt.Sprintf("%s/meta/id", rootPath),
+		idPath:   idPath,
 	}
 }
 
@@ -82,7 +93,7 @@ func (alloc *etcdGenerator) preemption() error {
 		return err
 
 	}
-	end := value + idBatch
+	end := value + alloc.idBatch
 
 	if value == 0 {
 		err = alloc.createID(end)

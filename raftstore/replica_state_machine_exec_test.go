@@ -269,6 +269,46 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
 }
 
+func TestDoExecUpdateLease(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
+	pr := newTestReplica(Shard{ID: 1,
+		Epoch:    Epoch{Generation: 2},
+		Replicas: []Replica{{ID: 2}, {ID: 3}, {ID: 4}}},
+		Replica{ID: 2}, s)
+	ctx := newApplyContext()
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 1, ReplicaID: 2},
+	}))
+	resp, err := pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 1, ReplicaID: 2}, pr.getLease())
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 2, ReplicaID: 3},
+	}))
+	resp, err = pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: 3}, pr.getLease())
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 1, ReplicaID: 1},
+	}))
+	resp, err = pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: 3}, pr.getLease())
+}
+
 type testDataStorage struct {
 	persistentLogIndex uint64
 	feature            storage.Feature

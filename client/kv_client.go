@@ -192,7 +192,7 @@ func (c *kvClient) BatchGet(ctx context.Context, keys [][]byte) *Future {
 	c.cli.Router().AscendRange(c.shardGroup,
 		tree.Min(), end,
 		c.policy,
-		func(shard raftstore.Shard, replicaStore metapb.Store) bool {
+		func(shard raftstore.Shard, replicaStore metapb.Store, _ *metapb.EpochLease) bool {
 			if allocated == tree.Len() {
 				return false
 			}
@@ -379,7 +379,7 @@ func (c *kvClient) ParallelScan(ctx context.Context,
 	c.cli.Router().AscendRange(c.shardGroup,
 		start, end,
 		c.policy,
-		func(shard raftstore.Shard, replicaStore metapb.Store) bool {
+		func(shard raftstore.Shard, replicaStore metapb.Store, _ *metapb.EpochLease) bool {
 			if len(ranges) == 0 {
 				ranges = append(ranges, keyRange{start: start, end: shard.End})
 			} else {

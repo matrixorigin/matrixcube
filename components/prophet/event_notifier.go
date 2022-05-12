@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
@@ -73,17 +74,16 @@ func (wn *eventNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *rp
 		defer wn.cluster.RUnlock()
 		if event.MatchEvent(event.InitEvent, req.CreateWatcher.Flag) {
 			snap := event.Snapshot{
-				Leaders: make(map[uint64]uint64),
+				LeaderReplicasIDs: make(map[uint64]uint64),
+				Leases:            make(map[uint64]*metapb.EpochLease),
 			}
 			for _, c := range wn.cluster.GetStores() {
 				snap.Stores = append(snap.Stores, c.Meta)
 			}
 			for _, res := range wn.cluster.GetShards() {
 				snap.Shards = append(snap.Shards, res.Meta)
-				leader := res.GetLeader()
-				if leader != nil {
-					snap.Leaders[res.Meta.GetID()] = leader.ID
-				}
+				snap.LeaderReplicasIDs[res.Meta.GetID()] = res.GetLeader().GetID()
+				snap.Leases[res.Meta.GetID()] = res.GetLease()
 			}
 
 			rsp, err := event.NewInitEvent(snap)

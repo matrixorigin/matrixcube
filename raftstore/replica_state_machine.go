@@ -95,6 +95,7 @@ type stateMachine struct {
 
 	metadataMu struct {
 		sync.Mutex
+		lease   *EpochLease
 		shard   Shard
 		removed bool
 		splited bool
@@ -139,6 +140,18 @@ func (d *stateMachine) getShard() Shard {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.shard
+}
+
+func (d *stateMachine) updateLease(lease *EpochLease) {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	d.metadataMu.lease = lease
+}
+
+func (d *stateMachine) getLease() *EpochLease {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	return d.metadataMu.lease
 }
 
 func (d *stateMachine) getConfState() raftpb.ConfState {

@@ -38,6 +38,7 @@ type Cluster interface {
 	GetLogger() *zap.Logger
 	GetOpts() *config.PersistOptions
 	AllocID() (uint64, error)
+	NextShardEpoch(uint64) (uint64, error)
 	FitShard(*core.CachedShard) *placement.ShardFit
 	RemoveScheduler(name string) error
 	AddSuspectShards(ids ...uint64)

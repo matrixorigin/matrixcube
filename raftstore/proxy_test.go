@@ -21,13 +21,13 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/testutil"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 // FIXME: add leaktest checks
@@ -104,11 +104,11 @@ func TestLocalDispatch(t *testing.T) {
 	}
 
 	// no backend
-	assert.Error(t, sp.DispatchTo(req, Shard{}, "1"))
+	assert.Error(t, sp.DispatchTo(req, Shard{}, metapb.Store{ClientAddress: "1"}, nil))
 
 	// no resp
 	factory.backends["b1"] = newLocalBackend(func(r rpcpb.Request) error { return nil })
-	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b1"))
+	assert.NoError(t, sp.DispatchTo(req, Shard{}, metapb.Store{ClientAddress: "b1"}, nil))
 	select {
 	case <-sc:
 		assert.Fail(t, "need timeout")
@@ -122,7 +122,7 @@ func TestLocalDispatch(t *testing.T) {
 		sp.OnResponse(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: req.ID}}})
 		return nil
 	})
-	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b2"))
+	assert.NoError(t, sp.DispatchTo(req, Shard{}, metapb.Store{ClientAddress: "b2"}, nil))
 	select {
 	case rsp := <-sc:
 		assert.Equal(t, rpcpb.Response{ID: req.ID}, rsp)
@@ -208,7 +208,7 @@ func TestRPCDispatch(t *testing.T) {
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
 	rc.setRequest(req, time.Millisecond*100)
-	assert.NoError(t, sp1.DispatchTo(req, Shard{}, addr2))
+	assert.NoError(t, sp1.DispatchTo(req, Shard{}, metapb.Store{ClientAddress: addr2}, nil))
 
 	select {
 	case <-sc1:

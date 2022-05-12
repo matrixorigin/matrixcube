@@ -46,12 +46,14 @@ type Builder struct {
 	expectedRoles map[uint64]placement.ReplicaRoleType
 
 	// operation record
-	originPeers         peersMap
-	unhealthyPeers      peersMap
-	originLeaderStoreID uint64
-	targetPeers         peersMap
-	targetLeaderStoreID uint64
-	err                 error
+	originPeers          peersMap
+	unhealthyPeers       peersMap
+	originLeaderStoreID  uint64
+	targetPeers          peersMap
+	targetLeaderStoreID  uint64
+	targetLeaseReplicaID uint64
+	leaseEpoch           uint64
+	err                  error
 
 	// skip origin check flags
 	skipOriginJointStateCheck bool
@@ -242,6 +244,16 @@ func (b *Builder) SetLeader(containerID uint64) *Builder {
 	} else {
 		b.targetLeaderStoreID = containerID
 	}
+	return b
+}
+
+// SetLease records the target lease in Builder.
+func (b *Builder) SetLease(leaseEpoch, leaseReplicaID uint64) *Builder {
+	if b.err != nil {
+		return b
+	}
+	b.targetLeaseReplicaID = leaseReplicaID
+	b.leaseEpoch = leaseEpoch
 	return b
 }
 
@@ -522,6 +534,10 @@ func (b *Builder) buildStepsWithJointConsensus(kind OpKind) (OpKind, error) {
 		kind |= OpShard
 	}
 
+	if b.targetLeaseReplicaID > 0 {
+		b.execTransferLease()
+		kind |= OpLease
+	}
 	return kind, nil
 }
 
@@ -589,7 +605,11 @@ func (b *Builder) preferOldPeerAsLeader(targetLeaderStoreID uint64) int {
 func (b *Builder) buildStepsWithoutJointConsensus(kind OpKind) (OpKind, error) {
 	b.initStepPlanPreferFuncs()
 
-	for len(b.toAdd) > 0 || len(b.toRemove) > 0 || len(b.toPromote) > 0 || len(b.toDemote) > 0 {
+	for len(b.toAdd) > 0 ||
+		len(b.toRemove) > 0 ||
+		len(b.toPromote) > 0 ||
+		len(b.toDemote) > 0 ||
+		b.targetLeaseReplicaID > 0 {
 		plan := b.peerPlan()
 		if plan.IsEmpty() {
 			return kind, errors.New("fail to build operator: plan is empty, maybe no valid leader")
@@ -615,6 +635,10 @@ func (b *Builder) buildStepsWithoutJointConsensus(kind OpKind) (OpKind, error) {
 		if plan.remove != nil {
 			b.execRemovePeer(*plan.remove)
 			kind |= OpShard
+		}
+		if plan.leaseReplciaID > 0 {
+			b.execTransferLease()
+			kind |= OpLease
 		}
 	}
 
@@ -669,6 +693,12 @@ func (b *Builder) execRemovePeer(peer metapb.Replica) {
 	b.steps = append(b.steps, RemovePeer{FromStore: peer.StoreID, PeerID: peer.ID})
 	delete(b.currentPeers, peer.StoreID)
 	delete(b.toRemove, peer.StoreID)
+}
+
+func (b *Builder) execTransferLease() {
+	b.steps = append(b.steps, TransferLease{LeaseEpoch: b.leaseEpoch, ToReplicaID: b.targetLeaseReplicaID})
+	b.leaseEpoch = 0
+	b.targetLeaseReplicaID = 0
 }
 
 func (b *Builder) execChangePeerV2(needEnter bool, needTransferLeader bool) {
@@ -758,6 +788,7 @@ func (b *Builder) allowLeader(peer metapb.Replica, ignoreClusterLimit bool) bool
 type stepPlan struct {
 	leaderBeforeAdd    uint64 // leader before adding peer.
 	leaderBeforeRemove uint64 // leader before removing peer.
+	leaseReplciaID     uint64 // new lease
 	add                *metapb.Replica
 	remove             *metapb.Replica
 	promote            *metapb.Replica
@@ -770,7 +801,7 @@ func (p stepPlan) String() string {
 }
 
 func (p stepPlan) IsEmpty() bool {
-	return p.promote == nil && p.demote == nil && p.add == nil && p.remove == nil
+	return p.promote == nil && p.demote == nil && p.add == nil && p.remove == nil && p.leaseReplciaID == 0
 }
 
 func (b *Builder) peerPlan() stepPlan {
@@ -789,6 +820,9 @@ func (b *Builder) peerPlan() stepPlan {
 		return p
 	}
 	if p := b.planAddPeer(); !p.IsEmpty() {
+		return p
+	}
+	if p := b.planTransferLease(); !p.IsEmpty() {
 		return p
 	}
 	return stepPlan{}
@@ -924,6 +958,10 @@ func (b *Builder) planAddPeer() stepPlan {
 		}
 	}
 	return best
+}
+
+func (b *Builder) planTransferLease() stepPlan {
+	return stepPlan{leaseReplciaID: b.targetLeaseReplicaID}
 }
 
 func (b *Builder) initStepPlanPreferFuncs() {

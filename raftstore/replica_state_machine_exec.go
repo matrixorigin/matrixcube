@@ -47,6 +47,8 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpcpb.ResponseBatch,
 		return d.doExecCompactLog(ctx)
 	case rpcpb.CmdUpdateLabels:
 		return d.doUpdateLabels(ctx)
+	case rpcpb.CmdUpdateEpochLease:
+		return d.doUpdateEpochLease(ctx)
 	}
 
 	return rpcpb.ResponseBatch{}, nil
@@ -367,6 +369,26 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, e
 	ctx.adminResult = &adminResult{
 		adminType: rpcpb.CmdUpdateLabels,
 	}
+	return resp, nil
+}
+
+func (d *stateMachine) doUpdateEpochLease(ctx *applyContext) (rpcpb.ResponseBatch, error) {
+	updateReq := ctx.req.GetUpdateEpochLeaseRequest()
+	currentLease := d.getLease()
+
+	resp := newAdminResponseBatch(rpcpb.CmdUpdateEpochLease, &rpcpb.UpdateEpochLeaseResponse{})
+	ctx.adminResult = &adminResult{
+		adminType: rpcpb.CmdUpdateEpochLease,
+	}
+
+	if currentLease != nil && currentLease.Epoch >= updateReq.Lease.Epoch {
+		return resp, nil
+	}
+
+	d.updateLease(&updateReq.Lease)
+
+	d.logger.Info("shard lease updated",
+		zap.Stringer("new-lease", &updateReq.Lease))
 	return resp, nil
 }
 

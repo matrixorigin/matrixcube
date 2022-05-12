@@ -56,6 +56,13 @@ func CreateTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.Ca
 		Build(kind)
 }
 
+// CreateTransferLeaseOperator creates an operator that transfers the lease from a source replica to a target replica.
+func CreateTransferLeaseOperator(desc string, cluster opt.Cluster, res *core.CachedShard, leaseEpoch uint64, targetReplicaID uint64, kind OpKind) (*Operator, error) {
+	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).
+		SetLease(leaseEpoch, targetReplicaID).
+		Build(kind)
+}
+
 // CreateForceTransferLeaderOperator creates an operator that transfers the leader from a source container to a target container forcible.
 func CreateForceTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedShard, sourceStoreID uint64, targetStoreID uint64, kind OpKind) (*Operator, error) {
 	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).

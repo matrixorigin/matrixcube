@@ -469,6 +469,7 @@ func (pr *replica) prophetHeartbeat() {
 		PendingReplicas: pr.collectPendingReplicas(),
 		Stats:           pr.stats.heartbeatState(),
 		GroupKey:        pr.groupController.getShardGroupKey(shard),
+		Lease:           pr.getLease(),
 	}
 	pr.logger.Debug("start send shard heartbeat")
 	if err := pr.prophetClient.ShardHeartbeat(shard, req); err != nil {

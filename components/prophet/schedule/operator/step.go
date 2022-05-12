@@ -721,10 +721,7 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedShard) bool {
 			return false
 		}
 	}
-	if metadata.IsInJointState(res.Meta.GetReplicas()...) {
-		return false
-	}
-	return true
+	return !metadata.IsInJointState(res.Meta.GetReplicas()...)
 }
 
 // CheckSafety checks if the step meets the safety properties.
@@ -814,4 +811,34 @@ func (tl DestroyDirectly) CheckSafety(res *core.CachedShard) error {
 
 // Influence calculates the container difference that current step makes.
 func (tl DestroyDirectly) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+}
+
+// TransferLease is an OpStep that transfers a shard's lease.
+type TransferLease struct {
+	LeaseEpoch, ToReplicaID uint64
+}
+
+// ConfVerChanged returns the delta value for version increased by this step.
+func (tl TransferLease) ConfVerChanged(res *core.CachedShard) uint64 {
+	return 0 // transfer lease never change the conf version
+}
+
+func (tl TransferLease) String() string {
+	return fmt.Sprintf("transfer lease to replica %d, at epoch %d",
+		tl.ToReplicaID, tl.LeaseEpoch)
+}
+
+// IsFinish checks if current step is finished.
+func (tl TransferLease) IsFinish(res *core.CachedShard) bool {
+	return res.GetLease().GetReplicaID() == tl.ToReplicaID
+}
+
+// CheckSafety checks if the step meets the safety properties.
+func (tl TransferLease) CheckSafety(res *core.CachedShard) error {
+	return nil
+}
+
+// Influence calculates the container difference that current step makes.
+func (tl TransferLease) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+
 }

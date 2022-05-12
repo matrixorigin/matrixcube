@@ -82,6 +82,13 @@ func NewStore() *Store {
 	return &Store{}
 }
 
+// Clone clones the shard returns the pointer
+func (m *Store) Clone() *Store {
+	value := &Store{}
+	protoc.MustUnmarshal(value, protoc.MustMarshal(m))
+	return value
+}
+
 func (m *Store) GetVersionAndGitHash() (string, string) {
 	return m.Version, m.CommitID
 }

@@ -15,11 +15,11 @@
 package storage
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -28,7 +28,6 @@ type etcdKV struct {
 	sync.Mutex
 
 	rootPath string
-	idPath   string
 	client   *clientv3.Client
 	leadship *election.Leadership
 }
@@ -39,8 +38,12 @@ func NewEtcdKV(rootPath string, client *clientv3.Client, leadship *election.Lead
 		client:   client,
 		leadship: leadship,
 		rootPath: rootPath,
-		idPath:   fmt.Sprintf("%s/meta/id", rootPath),
 	}
+}
+
+func (s *etcdKV) Incr(key string) (uint64, error) {
+	id := id.NewEtcdGeneratorWithPathAndBatch(key, 1, s.client, s.leadship)
+	return id.AllocID()
 }
 
 func (s *etcdKV) Batch(batch *Batch) error {
