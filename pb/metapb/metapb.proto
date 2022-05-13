@@ -341,11 +341,12 @@ message ShardMetadata {
 
 // ShardLocalState shard local state
 message ShardLocalState {
-    Shard     shard = 1 [(gogoproto.nullable) = false];
-    ReplicaState state = 2;
+    Shard     shard    = 1 [(gogoproto.nullable) = false];
+    EpochLease lease   = 2;
+    ReplicaState state = 3;
     // RemoveData Whether or not the local Shard data needs to be deleted,
     // which needs to be specified when the Shard status is set to Destroying
-    bool removeData = 3;
+    bool removeData    = 4;
 }
 
 // Store the host store metadata

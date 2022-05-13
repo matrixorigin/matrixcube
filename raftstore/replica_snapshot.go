@@ -120,6 +120,7 @@ func (pr *replica) applySnapshot(ss raftpb.Snapshot) error {
 		}
 	}
 	pr.sm.updateShard(md.Metadata.Shard)
+	pr.sm.updateLease(md.Metadata.Lease)
 	// after snapshot applied, the shard range may changed, so we
 	// need update key ranges
 	pr.store.updateShardKeyRange(pr.group, md.Metadata.Shard)

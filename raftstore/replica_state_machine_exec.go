@@ -108,10 +108,10 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", &req))
 
-	res := Shard{}
-	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
-	res.Epoch.ConfigVer++
-	p := findReplica(res, replica.StoreID)
+	shard := Shard{}
+	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
+	shard.Epoch.ConfigVer++
+	p := findReplica(shard, replica.StoreID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
 		exists := false
@@ -120,12 +120,12 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 			if p.ID == replica.ID {
 				if p.Role != metapb.ReplicaRole_Learner {
 					err := errors.Wrapf(ErrReplicaDuplicated,
-						"shardID %d, replicaID %d, role %v", res.ID, p.ID, p.Role)
+						"shardID %d, replicaID %d, role %v", shard.ID, p.ID, p.Role)
 					return rpcpb.ResponseBatch{}, err
 				}
 			} else {
 				err := errors.Wrapf(ErrReplicaDuplicated,
-					"shardID %d, replicaID %d found on store %d", res.ID, p.ID, replica.StoreID)
+					"shardID %d, replicaID %d found on store %d", shard.ID, p.ID, replica.StoreID)
 				return rpcpb.ResponseBatch{}, err
 			}
 			p.Role = metapb.ReplicaRole_Voter
@@ -135,16 +135,16 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		}
 		if !exists {
 			replica.Role = metapb.ReplicaRole_Voter
-			res.Replicas = append(res.Replicas, replica)
+			shard.Replicas = append(shard.Replicas, replica)
 		}
 	case metapb.ConfigChangeType_RemoveNode:
 		if p != nil {
 			if p.ID != replica.ID {
 				err := errors.Wrapf(ErrReplicaNotFound,
-					"shardID %d, replicaID %d found on store %d", res.ID, p.ID, replica.StoreID)
+					"shardID %d, replicaID %d found on store %d", shard.ID, p.ID, replica.StoreID)
 				return rpcpb.ResponseBatch{}, err
 			} else {
-				removeReplica(&res, replica.StoreID)
+				removeReplica(&shard, replica.StoreID)
 			}
 
 			lease := d.getLease()
@@ -162,7 +162,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		} else {
 			err := errors.Wrapf(ErrReplicaNotFound,
 				"shardID %d, replicaID %d found on store %d",
-				res.ID,
+				shard.ID,
 				replica.ID, replica.StoreID)
 			return rpcpb.ResponseBatch{}, err
 		}
@@ -170,40 +170,41 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		if p != nil {
 			err := errors.Wrapf(ErrReplicaDuplicated,
 				"shardID %d, replicaID %d role %v already exist on store %d",
-				res.ID, p.ID, p.Role, replica.StoreID)
+				shard.ID, p.ID, p.Role, replica.StoreID)
 			return rpcpb.ResponseBatch{}, err
 		}
 		replica.Role = metapb.ReplicaRole_Learner
-		res.Replicas = append(res.Replicas, replica)
+		shard.Replicas = append(shard.Replicas, replica)
 	}
 	state := metapb.ReplicaState_Normal
 	if d.isRemoved() {
 		state = metapb.ReplicaState_ReplicaTombstone
 	}
-	d.updateShard(res)
-	if err := d.saveShardMetedata(ctx.index, ctx.term, res, state); err != nil {
+	d.updateShard(shard)
+	if err := d.saveShardMetedata(ctx.index, shard, state, d.getLease()); err != nil {
 		d.logger.Fatal("failed to save metadata",
 			zap.Error(err))
 	}
 
 	d.logger.Info("apply change replica completed",
-		log.ShardField("metadata", res),
+		log.ShardField("metadata", shard),
 		zap.String("state", state.String()))
 
 	resp := newAdminResponseBatch(rpcpb.CmdConfigChange, &rpcpb.ConfigChangeResponse{
-		Shard: res,
+		Shard: shard,
 	})
 	ctx.adminResult = &adminResult{
 		adminType: rpcpb.CmdConfigChange,
 		configChangeResult: configChangeResult{
 			index:   ctx.index,
 			changes: []rpcpb.ConfigChangeRequest{req},
-			shard:   res,
+			shard:   shard,
 		},
 	}
 	return resp, nil
 }
 
+// TODO: changed to A -> A + B
 func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.GetBatchSplitRequest()
@@ -347,17 +348,7 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, e
 		current.Labels = nil
 	}
 
-	err := d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
-		{
-			ShardID:  d.shardID,
-			LogIndex: ctx.index,
-			Metadata: metapb.ShardLocalState{
-				Shard: current,
-				State: metapb.ReplicaState_Normal,
-			},
-		},
-	})
-	if err != nil {
+	if err := d.saveShardMetedata(ctx.index, current, metapb.ReplicaState_Normal, d.getLease()); err != nil {
 		d.logger.Fatal("failed to update labels",
 			zap.Error(err))
 	}
@@ -391,6 +382,10 @@ func (d *stateMachine) doUpdateEpochLease(ctx *applyContext) (rpcpb.ResponseBatc
 	}
 
 	d.updateLease(&updateReq.Lease)
+	if err := d.saveShardMetedata(ctx.index, d.getShard(), metapb.ReplicaState_Normal, d.getLease()); err != nil {
+		d.logger.Fatal("failed to update lease",
+			zap.Error(err))
+	}
 
 	d.logger.Info("shard lease updated",
 		zap.Stringer("new-lease", &updateReq.Lease))
@@ -408,21 +403,14 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpcpb.ResponseBatch,
 			log.ShardField("new-shard", updateReq.Metadata.Shard))
 	}
 
-	err := d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
-		{
-			ShardID:  d.shardID,
-			LogIndex: ctx.index,
-			Metadata: updateReq.Metadata,
-		},
-	})
-	if err != nil {
+	d.updateShard(updateReq.Metadata.Shard)
+	d.updateLease(updateReq.Metadata.Lease)
+	if err := d.saveShardMetedata(ctx.index, d.getShard(), updateReq.Metadata.State, d.getLease()); err != nil {
 		d.logger.Fatal("failed to update metadata",
 			log.EpochField("current", current.Epoch),
 			log.ShardField("new-shard", updateReq.Metadata.Shard),
 			zap.Error(err))
 	}
-
-	d.updateShard(updateReq.Metadata.Shard)
 
 	d.logger.Info("shard metadata updated",
 		zap.String("replica-state", updateReq.Metadata.State.String()),
@@ -555,14 +543,14 @@ func (d *stateMachine) updateWriteMetrics() {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, term uint64,
-	shard Shard, state metapb.ReplicaState) error {
+func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state metapb.ReplicaState, lease *metapb.EpochLease) error {
 	return d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
 		Metadata: metapb.ShardLocalState{
 			State: state,
 			Shard: shard,
+			Lease: lease,
 		},
 	}})
 }

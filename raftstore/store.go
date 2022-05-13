@@ -531,17 +531,23 @@ func (s *store) startShards() {
 	}
 
 	var readyBootstrapShards []Shard
+	leases := make(map[uint64]*metapb.EpochLease)
 	for _, sls := range shards {
 		readyBootstrapShards = append(readyBootstrapShards, sls.Shard)
+		leases[sls.Shard.ID] = sls.Lease
 	}
 
 	newReplicaCreator(s).
 		withReason("restart").
-		withStartReplica(true, nil, func(r *replica) {
-			if metadata, ok := localDestroyings[r.shardID]; ok {
-				r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
-			}
-		}).
+		withStartReplica(true,
+			func(r *replica) {
+				r.sm.updateLease(leases[r.shardID])
+			},
+			func(r *replica) {
+				if metadata, ok := localDestroyings[r.shardID]; ok {
+					r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+				}
+			}).
 		create(readyBootstrapShards)
 
 	s.cleanupTombstones(tombstones)

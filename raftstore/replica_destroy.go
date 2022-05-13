@@ -170,14 +170,12 @@ func (pr *replica) destroy(shardRemoved bool, reason string) error {
 	if shardRemoved {
 		pr.sm.setShardState(metapb.ShardState_Destroyed)
 	}
-	shard := pr.getShard()
 
 	// Use last applied index as Tombstone metadata's log index. And any logs are
 	// not executed by the state machine anymore. So the index+1's metedata never
 	// be overrided.
-	index, term := pr.sm.getAppliedIndexTerm()
-	return pr.sm.saveShardMetedata(index+1,
-		term, shard, metapb.ReplicaState_ReplicaTombstone)
+	index, _ := pr.sm.getAppliedIndexTerm()
+	return pr.sm.saveShardMetedata(index+1, pr.getShard(), metapb.ReplicaState_ReplicaTombstone, nil)
 }
 
 func (pr *replica) confirmDestroyed() {

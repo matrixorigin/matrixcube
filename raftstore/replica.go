@@ -568,6 +568,7 @@ func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
 // collectPendingReplicas returns a list of replicas that are potentially waiting for
 // snapshots from the leader.
 func (pr *replica) collectPendingReplicas() []Replica {
+	// TODO: impl
 	return []Replica{}
 }
 

@@ -17,11 +17,6 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -32,6 +27,10 @@ import (
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func runReplicaSnapshotTest(t *testing.T,
@@ -131,7 +130,16 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}, Start: []byte{1}, End: []byte{2}}
 		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
-			{ShardID: 1, LogIndex: 100, Metadata: metapb.ShardLocalState{Shard: shard}},
+			{
+				ShardID:  1,
+				LogIndex: 100,
+				Metadata: metapb.ShardLocalState{
+					Shard: shard,
+					Lease: &metapb.EpochLease{
+						Epoch:     1,
+						ReplicaID: 1,
+					},
+				}},
 		}))
 
 		ss, created, err := r.createSnapshot()
@@ -168,6 +176,10 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
+		assert.Equal(t, &metapb.EpochLease{
+			Epoch:     1,
+			ReplicaID: 1,
+		}, r.sm.metadataMu.lease)
 		assert.Equal(t, r.aware.(*testShardAware).getShardByIndex(0), r.getShard())
 		assert.Equal(t, shard, r.store.searchShard(shard.Group, shard.Start))
 
