@@ -86,6 +86,18 @@ type replica struct {
 	actions              *task.Queue
 	items                []interface{}
 	appliedIndex         uint64
+	// lease requires a minimum applied index, which is used to ensure that all
+	// previous writes have been applied to the state machine. Consider two scenarios:
+	// 1. Replica restart, we can't read directly on the lease because some logs may not
+	//    have been applied to the state machine yet (appliedIndex < lastCommittedIndex)
+	// 2. Lease changed from replica A to replica B, there are some write proposals that
+	//    have not been committed or applied to the state machine and cannot be read directly
+	//    on B. However, LeaseChange is a consensus command that needs to be applied before
+	//    the new lease can be visible to the outside, so it is safe to read directly on B.
+	// CommitIndex when the Replica starts, and then wait for the AppliedIndex to reach this
+	// level before safely executing the lease read.
+	leaseLeastAppliedIndex uint64
+	leaseReadActived       uint32 // 1: active
 	// pushedIndex is the log index that has been passed to the state machine to
 	// be applied
 	pushedIndex uint64
@@ -228,6 +240,7 @@ func (pr *replica) start(campaign bool) {
 		pr.aware.Created(shard)
 	}
 
+	pr.maybeSetLeaseReadReady()
 	pr.setStarted()
 	// If this shard has only one replica and I am the one, campaign directly.
 	if campaign {
@@ -420,6 +433,7 @@ func (pr *replica) initLogState() (bool, error) {
 		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
 	pr.lastCommittedIndex = rs.State.Commit
+	pr.leaseLeastAppliedIndex = rs.State.Commit
 	pr.sm.setFirstIndex(rs.FirstIndex)
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
@@ -459,6 +473,16 @@ func (pr *replica) setStarted() {
 
 func (pr *replica) waitStarted() {
 	<-pr.startedC
+}
+
+func (pr *replica) maybeSetLeaseReadReady() {
+	if pr.appliedIndex >= pr.leaseLeastAppliedIndex {
+		atomic.StoreUint32(&pr.leaseReadActived, 1)
+	}
+}
+
+func (pr *replica) leaseReadReady() bool {
+	return atomic.LoadUint32(&pr.leaseReadActived) == 1
 }
 
 func (pr *replica) notifyWorker() {

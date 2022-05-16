@@ -157,10 +157,61 @@ func (c *batch) getRequestID() []byte {
 	return c.requestBatch.Header.ID
 }
 
+func respOtherError(err error, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
+	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
+		Message: err.Error(),
+	})
+	resp := rpcpb.Response{
+		ID:  req.ID,
+		PID: req.PID,
+	}
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
 func respStoreNotMatch(err error, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:       err.Error(),
 		StoreMismatch: storeMismatch,
+	})
+	resp := rpcpb.Response{
+		ID:  req.ID,
+		PID: req.PID,
+	}
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func respMissingLease(shardID, replicaID uint64, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
+	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
+		Message:      fmt.Sprintf("shard %d missing lease on replcia %d", shardID, replicaID),
+		LeaseMissing: &errorpb.LeaseMissing{ShardID: shardID, ReplicaID: replicaID},
+	})
+	resp := rpcpb.Response{
+		ID:  req.ID,
+		PID: req.PID,
+	}
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func respLeaseMismatch(requestLease, replicaHeldLease *metapb.EpochLease, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
+	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
+		Message:       "request lease and replica held lease not match",
+		LeaseMismatch: &errorpb.LeaseMismatch{RequestLease: requestLease, ReplicaHeldLease: replicaHeldLease},
+	})
+	resp := rpcpb.Response{
+		ID:  req.ID,
+		PID: req.PID,
+	}
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func respLeaseReadNotReady(req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
+	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
+		Message:           "lease read not ready",
+		LeaseReadNotReady: &errorpb.LeaseReadNotReady{},
 	})
 	resp := rpcpb.Response{
 		ID:  req.ID,

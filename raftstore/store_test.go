@@ -419,3 +419,73 @@ func TestDoShardHeartbeatRsp(t *testing.T) {
 		assert.Equal(t, c.adminReq, c.adminTargetReq)
 	}
 }
+
+func TestOnRequestWithLease(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	cases := []struct {
+		pr             *replica
+		req            rpcpb.Request
+		leaseReadReady uint32
+		replicaLease   *metapb.EpochLease
+		requestLease   *metapb.EpochLease
+		hasError       bool
+	}{
+		{
+			pr:             &replica{shardID: 1, replica: Replica{ID: 1}},
+			leaseReadReady: 1,
+			replicaLease:   &metapb.EpochLease{ReplicaID: 1},
+			requestLease:   &metapb.EpochLease{ReplicaID: 1},
+		},
+		{
+			pr:           &replica{shardID: 1, replica: Replica{ID: 1}},
+			replicaLease: &metapb.EpochLease{ReplicaID: 1},
+			requestLease: &metapb.EpochLease{ReplicaID: 1},
+			hasError:     true,
+		},
+		{
+			pr:             &replica{shardID: 1, replica: Replica{ID: 1}},
+			leaseReadReady: 1,
+			replicaLease:   &metapb.EpochLease{ReplicaID: 1},
+			requestLease:   &metapb.EpochLease{ReplicaID: 2},
+			hasError:       true,
+		},
+		{
+			pr:           &replica{shardID: 1, replica: Replica{ID: 1}},
+			replicaLease: &metapb.EpochLease{ReplicaID: 1, Epoch: 1},
+			requestLease: &metapb.EpochLease{ReplicaID: 1},
+			hasError:     true,
+		},
+		{
+			pr:           &replica{shardID: 1, replica: Replica{ID: 1}},
+			requestLease: &metapb.EpochLease{ReplicaID: 1},
+			hasError:     true,
+		},
+	}
+
+	for _, c := range cases {
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			s.cfg.Customize.CustomLeaseHolderRequestHandler = func(shard metapb.Shard, lease metapb.EpochLease, req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error {
+				return nil
+			}
+			c.pr.store = s
+			c.pr.replicaID = c.pr.replica.ID
+			c.pr.leaseReadActived = c.leaseReadReady
+			c.pr.sm = &stateMachine{}
+			c.pr.sm.metadataMu.lease = c.replicaLease
+			c.pr.sm.metadataMu.shard = Shard{ID: c.pr.shardID}
+			s.addReplica(c.pr)
+
+			var resp rpcpb.ResponseBatch
+			c.req.ToShard = c.pr.shardID
+			c.req.ReplicaSelectPolicy = rpcpb.SelectLeaseHolder
+			c.req.Lease = c.requestLease
+			assert.NoError(t, s.OnRequestWithCB(c.req, func(r rpcpb.ResponseBatch) {
+				resp = r
+			}))
+			assert.Equal(t, c.hasError, resp.Header.Error.Message != "")
+		}()
+	}
+}

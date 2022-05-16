@@ -355,8 +355,8 @@ type CustomizeConfig struct {
 	CustomTransportFilter func(metapb.RaftMessage) bool `json:"-" toml:"-"`
 	// CustomWrapNewTransport wraps new transports
 	CustomWrapNewTransport func(transport.Trans) transport.Trans `json:"-" toml:"-"`
-	// CustomShardProxyRequestHandler custom ShardProxy request handler
-	CustomShardProxyRequestHandler func(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) (bool, error) `json:"-" toml:"-"`
+	// CustomLeaseHolderRequestHandler custom request handler on lease holder
+	CustomLeaseHolderRequestHandler func(shard metapb.Shard, lease metapb.EpochLease, req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error `json:"-" toml:"-"`
 }
 
 // GetLabels returns lables

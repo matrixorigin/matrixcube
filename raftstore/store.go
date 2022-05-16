@@ -334,18 +334,6 @@ func (s *store) Meta() metapb.Store {
 }
 
 func (s *store) OnRequest(req rpcpb.Request) error {
-	if s.cfg.Customize.CustomShardProxyRequestHandler == nil {
-		return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
-	}
-
-	handled, err := s.cfg.Customize.CustomShardProxyRequestHandler(req, s.shardsProxy.OnResponse)
-	if err != nil {
-		return err
-	}
-
-	if handled {
-		return nil
-	}
 	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
@@ -392,6 +380,34 @@ func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBa
 
 			return err
 		}
+	}
+
+	if req.ReplicaSelectPolicy == rpcpb.SelectLeaseHolder {
+		if req.Lease == nil {
+			s.logger.Fatal("missing lease when use SelectLeaseHolder")
+		}
+		if s.cfg.Customize.CustomLeaseHolderRequestHandler == nil {
+			s.logger.Fatal("missing cfg.Customize.CustomLeaseHolderRequestHandler")
+		}
+
+		lease := pr.getLease()
+		if lease == nil {
+			respMissingLease(pr.shardID, pr.replicaID, req, cb)
+			return nil
+		}
+		if !req.Lease.Match(lease) {
+			respLeaseMismatch(req.Lease, lease, req, cb)
+			return nil
+		}
+		if !pr.leaseReadReady() {
+			respLeaseReadNotReady(req, cb)
+			return nil
+		}
+
+		if err := s.cfg.Customize.CustomLeaseHolderRequestHandler(pr.getShard(), *req.Lease, req, cb); err != nil {
+			respOtherError(err, req, cb)
+		}
+		return nil
 	}
 
 	if err := pr.onReq(req, cb); err != nil {
