@@ -195,7 +195,7 @@ func respMissingLease(shardID, replicaID uint64, req rpcpb.Request, cb func(rpcp
 	cb(rsp)
 }
 
-func respLeaseMismatch(requestLease, replicaHeldLease *metapb.EpochLease, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
+func respLeaseMismatch(shardID uint64, requestLease, replicaHeldLease *metapb.EpochLease, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:       "request lease and replica held lease not match",
 		LeaseMismatch: &errorpb.LeaseMismatch{RequestLease: requestLease, ReplicaHeldLease: replicaHeldLease},

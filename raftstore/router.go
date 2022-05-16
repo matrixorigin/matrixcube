@@ -64,6 +64,8 @@ type Router interface {
 
 	// UpdateLeader update shard leader
 	UpdateLeader(shardID uint64, leaderReplciaID uint64)
+	// UpdateLease update lease
+	UpdateLease(shardID uint64, lease *metapb.EpochLease)
 	// UpdateShard update shard metadata
 	UpdateShard(shard Shard)
 	// UpdateStore update store metadata
@@ -352,6 +354,16 @@ func (r *defaultRouter) UpdateLeader(shardID uint64, leaderReplciaID uint64) {
 	r.updateLeaderLocked(shardID, leaderReplciaID)
 }
 
+func (r *defaultRouter) UpdateLease(shardID uint64, lease *metapb.EpochLease) {
+	if lease == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updateLeaseLocked(shardID, lease)
+}
+
 func (r *defaultRouter) UpdateShard(shard Shard) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -523,6 +535,11 @@ func (r *defaultRouter) updateLeaderLocked(shardID, leaderReplicaID uint64) {
 }
 
 func (r *defaultRouter) updateLeaseLocked(shardID uint64, lease *metapb.EpochLease) {
+	if l, ok := r.mu.leases[shardID]; ok &&
+		l.lease.GE(lease) {
+		return
+	}
+
 	shard := r.mustGetShardLocked(shardID)
 
 	for _, p := range shard.Replicas {

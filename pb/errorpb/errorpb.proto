@@ -64,8 +64,9 @@ message LeaseMissing {
 
 // LeaseMismatch request lease and replica held lease not match
 message LeaseMismatch {
-    metapb.EpochLease requestLease     = 1;
-    metapb.EpochLease replicaHeldLease = 2;
+    uint64            shardID          = 1;
+    metapb.EpochLease requestLease     = 2;
+    metapb.EpochLease replicaHeldLease = 3;
 }
 
 // LeaseReadNotReady lease held replica not ready, because some raft log need to applied.

@@ -149,3 +149,8 @@ func (m *Shard) MinEnd(end []byte) []byte {
 func (m *EpochLease) Match(target *EpochLease) bool {
 	return m.Epoch == target.Epoch && m.ReplicaID == target.ReplicaID
 }
+
+// GE return true if current lease >= target lease
+func (m *EpochLease) GE(target *EpochLease) bool {
+	return m.Epoch >= target.Epoch
+}

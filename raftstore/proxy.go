@@ -334,6 +334,8 @@ func (p *shardsProxy) done(rsp rpcpb.Response) {
 func (p *shardsProxy) adjustRoute(err errorpb.Error) {
 	if err.NotLeader != nil {
 		p.cfg.router.UpdateLeader(err.NotLeader.ShardID, err.NotLeader.Leader.ID)
+	} else if err.LeaseMismatch != nil {
+		p.cfg.router.UpdateLease(err.LeaseMismatch.ShardID, err.LeaseMismatch.ReplicaHeldLease)
 	}
 }
 

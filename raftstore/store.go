@@ -396,7 +396,7 @@ func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBa
 			return nil
 		}
 		if !req.Lease.Match(lease) {
-			respLeaseMismatch(req.Lease, lease, req, cb)
+			respLeaseMismatch(pr.shardID, req.Lease, lease, req, cb)
 			return nil
 		}
 		if !pr.leaseReadReady() {
