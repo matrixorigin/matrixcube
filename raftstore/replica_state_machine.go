@@ -21,6 +21,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -92,6 +93,7 @@ type stateMachine struct {
 	wc                       *logdb.WorkerContext
 	replicaCreatorFactory    replicaCreatorFactory
 	resultHandler            replicaResultHandler
+	aware                    aware.ShardStateAware
 
 	metadataMu struct {
 		sync.Mutex
@@ -106,9 +108,14 @@ type stateMachine struct {
 	}
 }
 
-func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
-	shard Shard, replica Replica, h replicaResultHandler,
-	replicaCreatorFactory replicaCreatorFactory) *stateMachine {
+func newStateMachine(l *zap.Logger,
+	ds storage.DataStorage,
+	ldb logdb.LogDB,
+	shard Shard,
+	replica Replica,
+	h replicaResultHandler,
+	replicaCreatorFactory replicaCreatorFactory,
+	aware aware.ShardStateAware) *stateMachine {
 	sm := &stateMachine{
 		logger:                l,
 		shardID:               shard.ID,
@@ -119,6 +126,7 @@ func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 		logdb:                 ldb,
 		resultHandler:         h,
 		replicaCreatorFactory: replicaCreatorFactory,
+		aware:                 aware,
 	}
 	if ldb != nil {
 		sm.wc = ldb.NewWorkerContext()
@@ -146,6 +154,10 @@ func (d *stateMachine) updateLease(lease *EpochLease) {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	d.metadataMu.lease = lease
+
+	if d.aware != nil {
+		d.aware.LeaseChanged(d.metadataMu.shard, lease, d.replica)
+	}
 }
 
 func (d *stateMachine) getLease() *EpochLease {

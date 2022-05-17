@@ -557,6 +557,10 @@ func (ts *testShardAware) SnapshotApplied(shard Shard) {
 	}
 }
 
+func (ts *testShardAware) LeaseChanged(shard metapb.Shard, lease *metapb.EpochLease, replica metapb.Replica) {
+
+}
+
 // TestRaftCluster is the test cluster is used to test starting N nodes in a process, and to provide
 // the start and stop capabilities of a single node, which is used to test `raftstore` more easily.
 type TestRaftCluster interface {

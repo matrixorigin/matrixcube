@@ -91,7 +91,11 @@ func TestTryToCreateReplicate(t *testing.T) {
 				c.pr.store = s
 				c.pr.replicaID = c.pr.replica.ID
 				c.pr.logger = s.logger
-				c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil, nil)
+				c.pr.sm = newStateMachine(c.pr.logger,
+					s.DataStorageByGroup(0),
+					nil,
+					Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}},
+					c.pr.replica, nil, nil, nil)
 				close(c.pr.startedC)
 				s.addReplica(c.pr)
 				s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
@@ -134,7 +138,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 		readStopper:       stop.NewStopper("TestHandleDestroyReplicaMessage"),
 	}
 	pr.sm = newStateMachine(pr.logger,
-		s.DataStorageByGroup(0), nil, Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica, nil, nil)
+		s.DataStorageByGroup(0), nil, Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica, nil, nil, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)

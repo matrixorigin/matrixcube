@@ -66,7 +66,7 @@ func runReplicaSnapshotTest(t *testing.T,
 	}))
 	assert.NoError(t, ds.Sync([]uint64{1}))
 
-	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
+	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil, nil)
 	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
 		startedC: make(chan struct{}),
@@ -155,7 +155,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
 
-		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil, nil)
 		_, err = r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
 		persistentLogIndex, err := r.getPersistentLogIndex()

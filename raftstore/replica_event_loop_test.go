@@ -123,7 +123,7 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.NoError(t, err)
 		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
-		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil, nil)
 
 		assert.False(t, r.initialized)
 		assert.Equal(t, uint64(0), r.lr.markerIndex)
@@ -190,7 +190,7 @@ func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
 
 		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
-		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil, nil)
 		assert.False(t, r.initialized)
 		_, err = r.handleEvent(r.logdb.NewWorkerContext())
 		assert.NoError(t, err)

@@ -194,7 +194,8 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		storage, pr.logdb, shard, r, pr,
 		func() *replicaCreator {
 			return newReplicaCreator(store)
-		})
+		},
+		pr.store.aware)
 	pr.destroyTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction,
 		pr.prophetClient, defaultCheckInterval)
 	pr.feature = storage.Feature()

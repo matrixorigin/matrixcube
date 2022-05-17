@@ -250,7 +250,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		defer ds.Close()
 		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
-		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil, nil)
 
 		rd := raft.Ready{Snapshot: ss}
 
