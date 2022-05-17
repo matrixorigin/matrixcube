@@ -38,9 +38,10 @@ func TestHandleInitEvent(t *testing.T) {
 	e := rpcpb.EventNotify{}
 	e.Type = event.InitEvent
 	e.InitEvent = &rpcpb.InitEventData{
-		Shards:  [][]byte{protoc.MustMarshal(&shard)},
-		Stores:  [][]byte{protoc.MustMarshal(&store)},
-		Leaders: []uint64{100},
+		Shards:           [][]byte{protoc.MustMarshal(&shard)},
+		Stores:           [][]byte{protoc.MustMarshal(&store)},
+		LeaderReplicaIDs: []uint64{100},
+		Leases:           []metapb.EpochLease{{Epoch: 1, ReplicaID: 100}},
 	}
 	r.handleEvent(e)
 
@@ -48,7 +49,10 @@ func TestHandleInitEvent(t *testing.T) {
 	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
 	assert.Equal(t, store, r.mu.stores[store.ID])
 	assert.Equal(t, store, r.mu.leaders[shard.ID])
+	assert.Equal(t, store, r.mu.leases[shard.ID].store)
 	_, ok := r.mu.missingLeaderStoreShards[shard.ID]
+	assert.False(t, ok)
+	_, ok = r.mu.missingLeaseStoreShards[shard.ID]
 	assert.False(t, ok)
 }
 
@@ -74,6 +78,9 @@ func TestHandleShardEvent(t *testing.T) {
 
 	_, ok := r.mu.leaders[shard.ID]
 	assert.False(t, ok)
+
+	_, ok = r.mu.leaders[shard.ID]
+	assert.False(t, ok)
 }
 
 func TestHandleShardEventWithLeader(t *testing.T) {
@@ -96,8 +103,8 @@ func TestHandleShardEventWithLeader(t *testing.T) {
 
 	e.Type = event.ShardEvent
 	e.ShardEvent = &rpcpb.ShardEventData{
-		Data:   protoc.MustMarshal(&shard),
-		Leader: 100,
+		Data:            protoc.MustMarshal(&shard),
+		LeaderReplicaID: 100,
 	}
 	r.handleEvent(e)
 
@@ -106,6 +113,39 @@ func TestHandleShardEventWithLeader(t *testing.T) {
 	assert.Equal(t, store, r.mu.stores[store.ID])
 	assert.Equal(t, store, r.mu.leaders[shard.ID])
 	_, ok := r.mu.missingLeaderStoreShards[shard.ID]
+	assert.False(t, ok)
+}
+
+func TestHandleShardEventWithLease(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	b := NewTestDataBuilder()
+	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
+	assert.NoError(t, err)
+	r := rr.(*defaultRouter)
+
+	shard := b.CreateShard(1, "100/101,200/201,300/301")
+	store := metapb.Store{ID: 101}
+
+	e := rpcpb.EventNotify{}
+	e.Type = event.StoreEvent
+	e.StoreEvent = &rpcpb.StoreEventData{
+		Data: protoc.MustMarshal(&store),
+	}
+	r.handleEvent(e)
+
+	e.Type = event.ShardEvent
+	e.ShardEvent = &rpcpb.ShardEventData{
+		Data:  protoc.MustMarshal(&shard),
+		Lease: &metapb.EpochLease{Epoch: 1, ReplicaID: 100},
+	}
+	r.handleEvent(e)
+
+	assert.Equal(t, shard, r.mu.shards[shard.ID])
+	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
+	assert.Equal(t, store, r.mu.stores[store.ID])
+	assert.Equal(t, store, r.mu.leases[shard.ID].store)
+	_, ok := r.mu.missingLeaseStoreShards[shard.ID]
 	assert.False(t, ok)
 }
 
@@ -123,8 +163,8 @@ func TestHandleShardEventWithMissingLeaderStore(t *testing.T) {
 	e := rpcpb.EventNotify{}
 	e.Type = event.ShardEvent
 	e.ShardEvent = &rpcpb.ShardEventData{
-		Data:   protoc.MustMarshal(&shard),
-		Leader: 100,
+		Data:            protoc.MustMarshal(&shard),
+		LeaderReplicaID: 100,
 	}
 	r.handleEvent(e)
 
@@ -143,6 +183,42 @@ func TestHandleShardEventWithMissingLeaderStore(t *testing.T) {
 	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
 	assert.Equal(t, store, r.mu.leaders[shard.ID])
 	assert.Equal(t, Replica{}, r.mu.missingLeaderStoreShards[shard.ID])
+}
+
+func TestHandleShardEventWithMissingLeaseStore(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	b := NewTestDataBuilder()
+	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
+	assert.NoError(t, err)
+	r := rr.(*defaultRouter)
+
+	shard := b.CreateShard(1, "100/101,200/201,300/301")
+	store := metapb.Store{ID: 101}
+
+	e := rpcpb.EventNotify{}
+	e.Type = event.ShardEvent
+	e.ShardEvent = &rpcpb.ShardEventData{
+		Data:  protoc.MustMarshal(&shard),
+		Lease: &metapb.EpochLease{Epoch: 1, ReplicaID: 100},
+	}
+	r.handleEvent(e)
+
+	assert.Equal(t, shard, r.mu.shards[shard.ID])
+	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
+	assert.Equal(t, leaseInfo{}, r.mu.leases[shard.ID])
+	assert.Equal(t, leaseInfo{lease: &metapb.EpochLease{Epoch: 1, ReplicaID: 100}, store: metapb.Store{ID: 101}}, r.mu.missingLeaseStoreShards[shard.ID])
+
+	e.Type = event.StoreEvent
+	e.StoreEvent = &rpcpb.StoreEventData{
+		Data: protoc.MustMarshal(&store),
+	}
+	r.handleEvent(e)
+
+	assert.Equal(t, shard, r.mu.shards[shard.ID])
+	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
+	assert.Equal(t, leaseInfo{lease: &metapb.EpochLease{Epoch: 1, ReplicaID: 100}, store: store}, r.mu.leases[shard.ID])
+	assert.Equal(t, leaseInfo{}, r.mu.missingLeaseStoreShards[shard.ID])
 }
 
 func TestHandleStoreEvent(t *testing.T) {
@@ -206,7 +282,7 @@ func TestSelectShard(t *testing.T) {
 		rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 		assert.NoError(t, err)
 		r := rr.(*defaultRouter)
-		r.updateShardLocked(protoc.MustMarshal(&c.shard), c.leaderReplicaID, false, false)
+		r.updateShardLocked(protoc.MustMarshal(&c.shard), c.leaderReplicaID, nil, false, false)
 		r.updateStoreLocked(protoc.MustMarshal(&c.store))
 
 		shard, addr := r.SelectShard(0, c.key)
@@ -237,7 +313,7 @@ func TestForeachShards(t *testing.T) {
 		r := rr.(*defaultRouter)
 
 		for _, s := range c.shards {
-			r.updateShardLocked(protoc.MustMarshal(&s), 0, false, false)
+			r.updateShardLocked(protoc.MustMarshal(&s), 0, nil, false, false)
 		}
 
 		n := 0
@@ -276,7 +352,7 @@ func TestGetShard(t *testing.T) {
 		assert.NoError(t, err)
 		r := rr.(*defaultRouter)
 
-		r.updateShardLocked(protoc.MustMarshal(&c.shard), 0, false, false)
+		r.updateShardLocked(protoc.MustMarshal(&c.shard), 0, nil, false, false)
 		assert.Equal(t, c.shard, r.GetShard(c.id), "index %d", i)
 	}
 }
@@ -288,6 +364,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 	cases := []struct {
 		key             []byte
 		leaderReplicaID uint64
+		lease           *metapb.EpochLease
 		shard           Shard
 		stores          []metapb.Store
 		policy          rpcpb.ReplicaSelectPolicy
@@ -297,6 +374,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 		{
 			key:             b.CreateShard(1, "100/101,200/201,300/301").Start,
 			leaderReplicaID: 100,
+			lease:           &metapb.EpochLease{Epoch: 1, ReplicaID: 200},
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
 			policy:          rpcpb.SelectLeader,
@@ -306,6 +384,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 		{
 			key:             b.CreateShard(1, "100/101,200/201,300/301").Start,
 			leaderReplicaID: 100,
+			lease:           &metapb.EpochLease{Epoch: 1, ReplicaID: 200},
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
 			policy:          rpcpb.SelectRandom,
@@ -315,11 +394,22 @@ func TestSelectShardByPolicy(t *testing.T) {
 		{
 			key:             b.CreateShard(2, "").Start,
 			leaderReplicaID: 100,
+			lease:           &metapb.EpochLease{Epoch: 1, ReplicaID: 200},
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
-			policy:          rpcpb.SelectLeader,
+			policy:          rpcpb.SelectLeaseHolder,
 			expectShardID:   0,
 			expectStoreID:   []uint64{0, 0},
+		},
+		{
+			key:             b.CreateShard(1, "100/101,200/201,300/301").Start,
+			leaderReplicaID: 100,
+			lease:           &metapb.EpochLease{Epoch: 1, ReplicaID: 200},
+			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
+			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
+			policy:          rpcpb.SelectLeaseHolder,
+			expectShardID:   1,
+			expectStoreID:   []uint64{201, 201},
 		},
 	}
 
@@ -327,14 +417,19 @@ func TestSelectShardByPolicy(t *testing.T) {
 		rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 		assert.NoError(t, err)
 		r := rr.(*defaultRouter)
-		r.updateShardLocked(protoc.MustMarshal(&c.shard), c.leaderReplicaID, false, false)
+		r.updateShardLocked(protoc.MustMarshal(&c.shard), c.leaderReplicaID, c.lease, false, false)
 		for _, s := range c.stores {
 			r.updateStoreLocked(protoc.MustMarshal(&s))
 		}
 
-		shard, store := r.SelectShardWithPolicy(0, c.key, c.policy)
+		shard, store, lease := r.SelectShardWithPolicy(0, c.key, c.policy)
 		assert.Equal(t, c.expectShardID, shard.ID, "index %d", i)
 		assert.True(t, c.expectStoreID[0] <= store.ID && store.ID <= c.expectStoreID[1], "index %d", i)
+		if c.expectShardID > 0 && c.policy == rpcpb.SelectLeaseHolder {
+			assert.Equal(t, c.lease, lease, "index %d", i)
+		} else {
+			assert.Nil(t, lease, "index %d", i)
+		}
 	}
 }
 
@@ -351,9 +446,9 @@ func TestAscendRange(t *testing.T) {
 	s1 := b.CreateShard(1, "10/11,20/21,30/31")
 	s2 := b.CreateShard(2, "100/101,200/201,300/301")
 	s3 := b.CreateShard(3, "1000/1001,2000/2001,3000/3001")
-	r.updateShardLocked(protoc.MustMarshal(&s1), 10, false, false)
-	r.updateShardLocked(protoc.MustMarshal(&s2), 100, false, false)
-	r.updateShardLocked(protoc.MustMarshal(&s3), 1000, false, false)
+	r.updateShardLocked(protoc.MustMarshal(&s1), 10, nil, false, false)
+	r.updateShardLocked(protoc.MustMarshal(&s2), 100, nil, false, false)
+	r.updateShardLocked(protoc.MustMarshal(&s3), 1000, nil, false, false)
 	r.updateStoreLocked(protoc.MustMarshal(&metapb.Store{ID: 11}))
 	r.updateStoreLocked(protoc.MustMarshal(&metapb.Store{ID: 21}))
 	r.updateStoreLocked(protoc.MustMarshal(&metapb.Store{ID: 31}))
@@ -399,7 +494,7 @@ func TestAscendRange(t *testing.T) {
 	for i, c := range cases {
 		var shards []uint64
 		var stores []uint64
-		r.AscendRange(0, format.Uint64ToBytes(c.keyRange[0]), format.Uint64ToBytes(c.keyRange[1]), c.policy, func(shard Shard, replciaStore metapb.Store) bool {
+		r.AscendRange(0, format.Uint64ToBytes(c.keyRange[0]), format.Uint64ToBytes(c.keyRange[1]), c.policy, func(shard Shard, replciaStore metapb.Store, _ *metapb.EpochLease) bool {
 			shards = append(shards, shard.ID)
 			stores = append(stores, replciaStore.ID)
 			return true

@@ -25,12 +25,14 @@ type ShardStateAware interface {
 	Splited(metapb.Shard)
 	// Destroyed the shard was destroyed on the current store
 	Destroyed(metapb.Shard)
+	// SnapshotApplied snapshot applied
+	SnapshotApplied(metapb.Shard)
 	// BecomeLeader the shard was become leader on the current store
 	BecomeLeader(metapb.Shard)
 	// BecomeLeader the shard was become follower on the current store
 	BecomeFollower(metapb.Shard)
-	// SnapshotApplied snapshot applied
-	SnapshotApplied(metapb.Shard)
+	// LeaseChanged the lease of the shard is changed.
+	LeaseChanged(shard metapb.Shard, lease *metapb.EpochLease, replica metapb.Replica)
 }
 
 // TestShardStateAware just for test

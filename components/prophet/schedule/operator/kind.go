@@ -40,6 +40,8 @@ const (
 	OpMerge
 	// Initiated by range scheduler.
 	OpRange
+	// OpLease by replica lease checker
+	OpLease
 	opMax
 )
 

@@ -334,18 +334,6 @@ func (s *store) Meta() metapb.Store {
 }
 
 func (s *store) OnRequest(req rpcpb.Request) error {
-	if s.cfg.Customize.CustomShardProxyRequestHandler == nil {
-		return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
-	}
-
-	handled, err := s.cfg.Customize.CustomShardProxyRequestHandler(req, s.shardsProxy.OnResponse)
-	if err != nil {
-		return err
-	}
-
-	if handled {
-		return nil
-	}
 	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
@@ -392,6 +380,44 @@ func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBa
 
 			return err
 		}
+	}
+
+	if req.ReplicaSelectPolicy == rpcpb.SelectLeaseHolder {
+		if req.Lease == nil {
+			s.logger.Fatal("missing lease when use SelectLeaseHolder")
+		}
+		if s.cfg.Customize.CustomLeaseHolderRequestHandler == nil {
+			s.logger.Fatal("missing cfg.Customize.CustomLeaseHolderRequestHandler")
+		}
+
+		lease := pr.getLease()
+		if lease == nil {
+			respMissingLease(pr.shardID, pr.replicaID, req, cb)
+			return nil
+		}
+		if !req.Lease.Match(lease) {
+			respLeaseMismatch(pr.shardID, req.Lease, lease, req, cb)
+			return nil
+		}
+		if !pr.leaseReadReady() {
+			respLeaseReadNotReady(req, cb)
+			return nil
+		}
+
+		if err := s.cfg.Customize.CustomLeaseHolderRequestHandler(pr.getShard(),
+			*req.Lease,
+			req,
+			func(data []byte, err error) {
+				if err != nil {
+					respOtherError(err, req, cb)
+					return
+				}
+				b := newSingleBatch(s.logger, req, cb)
+				b.resp(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{Value: data}}})
+			}); err != nil {
+			respOtherError(err, req, cb)
+		}
+		return nil
 	}
 
 	if err := pr.onReq(req, cb); err != nil {
@@ -531,17 +557,23 @@ func (s *store) startShards() {
 	}
 
 	var readyBootstrapShards []Shard
+	leases := make(map[uint64]*metapb.EpochLease)
 	for _, sls := range shards {
 		readyBootstrapShards = append(readyBootstrapShards, sls.Shard)
+		leases[sls.Shard.ID] = sls.Lease
 	}
 
 	newReplicaCreator(s).
 		withReason("restart").
-		withStartReplica(true, nil, func(r *replica) {
-			if metadata, ok := localDestroyings[r.shardID]; ok {
-				r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
-			}
-		}).
+		withStartReplica(true,
+			func(r *replica) {
+				r.sm.updateLease(leases[r.shardID])
+			},
+			func(r *replica) {
+				if metadata, ok := localDestroyings[r.shardID]; ok {
+					r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+				}
+			}).
 		create(readyBootstrapShards)
 
 	s.cleanupTombstones(tombstones)
@@ -1052,6 +1084,20 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 			log.ShardIDField(rsp.ShardID))
 		pr.addAdminRequest(rpcpb.CmdTransferLeader, &rpcpb.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
+		})
+	} else if rsp.TransferLease != nil {
+		lease := pr.getLease()
+		if lease != nil && lease.GE(&rsp.TransferLease.Lease) {
+			return
+		}
+
+		s.logger.Info("send transfer lease request",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID),
+			zap.Uint64("lease-epoch", rsp.TransferLease.Lease.Epoch),
+			zap.Uint64("lease-replica", rsp.TransferLease.Lease.ReplicaID))
+		pr.addAdminRequest(rpcpb.CmdUpdateEpochLease, &rpcpb.UpdateEpochLeaseRequest{
+			Lease: rsp.TransferLease.Lease,
 		})
 	} else if rsp.SplitShard != nil {
 		// currently, pd only support use keys to splits

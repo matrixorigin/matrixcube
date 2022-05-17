@@ -61,6 +61,13 @@ func (m *RequestBatch) GetUpdateLabelsRequest() UpdateLabelsRequest {
 	return req
 }
 
+// GetUpdateEpochLeaseRequest return UpdateEpochLeaseRequest request
+func (m *RequestBatch) GetUpdateEpochLeaseRequest() UpdateEpochLeaseRequest {
+	var req UpdateEpochLeaseRequest
+	protoc.MustUnmarshal(&req, m.GetAdminRequest().Cmd)
+	return req
+}
+
 // IsEmpty returns true if is a empty batch
 func (m *RequestBatch) IsEmpty() bool {
 	return len(m.Header.ID) == 0
@@ -108,6 +115,13 @@ func (m *ResponseBatch) GetCompactLogResponse() CompactLogResponse {
 // GetBatchSplitResponse return BatchSplitResponse Response
 func (m *ResponseBatch) GetBatchSplitResponse() BatchSplitResponse {
 	var req BatchSplitResponse
+	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
+	return req
+}
+
+// GetUpdateEpochLeaseResponse return BatchSplitResponse Response
+func (m *ResponseBatch) GetUpdateEpochLeaseResponse() UpdateEpochLeaseResponse {
+	var req UpdateEpochLeaseResponse
 	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
 	return req
 }

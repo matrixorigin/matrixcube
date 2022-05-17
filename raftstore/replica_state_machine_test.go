@@ -110,7 +110,7 @@ func runSimpleStateMachineTest(t *testing.T,
 	executor := executor.NewKVExecutor(st)
 	base := kv.NewBaseStorage(st, fs)
 	ds := kv.NewKVDataStorage(base, executor)
-	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h, nil)
+	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h, nil, nil)
 	f(sm)
 }
 
@@ -423,6 +423,42 @@ func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 		assert.Equal(t, true, h.isConfChange)
 		require.Equal(t, 0, len(h.resp.Responses))
 		assert.Equal(t, "stale command", h.resp.Header.Error.Message)
+	}
+	runSimpleStateMachineTest(t, f, h)
+}
+
+func TestStateMachineRejectsStaleLeaseEntries(t *testing.T) {
+	h := &testReplicaResultHandler{}
+	f := func(sm *stateMachine) {
+		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
+			rpcpb.CmdConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{}))
+		batch.Header.Lease = &metapb.EpochLease{Epoch: 1, ReplicaID: 1}
+		batch.Header.ShardID = sm.getShard().ID
+		batch.Requests[0].Epoch = sm.getShard().Epoch
+		cc := raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  100,
+			Context: protoc.MustMarshal(&batch),
+		}
+		entry := raftpb.Entry{
+			Index: 1,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  protoc.MustMarshal(&cc),
+		}
+		sm.updateLease(&metapb.EpochLease{Epoch: 2, ReplicaID: 2})
+		sm.applyCommittedEntries([]raftpb.Entry{entry})
+		index, term := sm.getAppliedIndexTerm()
+		assert.Equal(t, uint64(1), index)
+		assert.Equal(t, uint64(1), term)
+		assert.Equal(t, uint64(1), h.appliedIndex)
+
+		assert.Equal(t, uint64(1), h.notified)
+		assert.Equal(t, batch.Header.ID, h.id)
+		assert.Equal(t, true, h.isConfChange)
+		require.Equal(t, 0, len(h.resp.Responses))
+		assert.Equal(t, "lease mismatch", h.resp.Header.Error.Message)
 	}
 	runSimpleStateMachineTest(t, f, h)
 }

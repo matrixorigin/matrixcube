@@ -56,6 +56,23 @@ message RaftEntryTooLarge {
     uint64 entrySize = 2;
 }
 
+// LeaseMissing lease is missing
+message LeaseMissing {
+    uint64 shardID   = 1;
+    uint64 replicaID = 2;
+}
+
+// LeaseMismatch request lease and replica held lease not match
+message LeaseMismatch {
+    uint64            shardID          = 1;
+    metapb.EpochLease requestLease     = 2;
+    metapb.EpochLease replicaHeldLease = 3;
+}
+
+// LeaseReadNotReady lease held replica not ready, because some raft log need to applied.
+message LeaseReadNotReady {
+}
+
 // Error is a raft error
 message Error {
     string            message           = 1;
@@ -68,4 +85,7 @@ message Error {
     StoreMismatch     storeMismatch     = 8;
     RaftEntryTooLarge raftEntryTooLarge = 9;
     ShardUnavailable  shardUnavailable  = 10;
+    LeaseMissing      leaseMissing      = 11;
+    LeaseMismatch     leaseMismatch     = 12;
+    LeaseReadNotReady leaseReadNotReady = 13;
 }

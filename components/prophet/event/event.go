@@ -49,9 +49,10 @@ func TypeName(value uint32) string {
 
 // Snapshot cache snapshot
 type Snapshot struct {
-	Shards  []metapb.Shard
-	Stores  []metapb.Store
-	Leaders map[uint64]uint64
+	Shards            []metapb.Shard
+	Stores            []metapb.Store
+	LeaderReplicasIDs map[uint64]uint64
+	Leases            map[uint64]*metapb.EpochLease
 }
 
 // MatchEvent returns the flag has the target event
@@ -79,14 +80,20 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 		}
 
 		resp.Shards = append(resp.Shards, data)
-		resp.Leaders = append(resp.Leaders, snap.Leaders[v.GetID()])
+		resp.LeaderReplicaIDs = append(resp.LeaderReplicaIDs, snap.LeaderReplicasIDs[v.GetID()])
+		lease := snap.Leases[v.GetID()]
+		if nil == lease {
+			resp.Leases = append(resp.Leases, metapb.EpochLease{})
+		} else {
+			resp.Leases = append(resp.Leases, *lease)
+		}
 	}
 
 	return resp, nil
 }
 
 // NewShardEvent create shard event
-func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
+func NewShardEvent(target metapb.Shard, leaderReplicaID uint64, lease *metapb.EpochLease, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
@@ -95,10 +102,11 @@ func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bo
 	return rpcpb.EventNotify{
 		Type: ShardEvent,
 		ShardEvent: &rpcpb.ShardEventData{
-			Data:    value,
-			Leader:  leaderID,
-			Removed: removed,
-			Create:  create,
+			Data:            value,
+			LeaderReplicaID: leaderReplicaID,
+			Lease:           lease,
+			Removed:         removed,
+			Create:          create,
 		},
 	}
 }

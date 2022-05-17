@@ -32,13 +32,26 @@ func (s memoryKVItem) Less(than btree.Item) bool {
 type memStorage struct {
 	sync.RWMutex
 
-	tree *btree.BTree
+	incrMap map[string]uint64
+	tree    *btree.BTree
 }
 
 func newMemKV() KV {
 	return &memStorage{
-		tree: btree.New(2),
+		tree:    btree.New(2),
+		incrMap: make(map[string]uint64),
 	}
+}
+
+func (s *memStorage) Incr(key string) (uint64, error) {
+	s.Lock()
+	defer s.Unlock()
+	v, ok := s.incrMap[key]
+	if !ok {
+		v = 0
+	}
+	s.incrMap[key] = v + 1
+	return v + 1, nil
 }
 
 func (s *memStorage) Batch(batch *Batch) error {

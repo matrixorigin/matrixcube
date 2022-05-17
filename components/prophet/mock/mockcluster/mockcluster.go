@@ -90,6 +90,10 @@ func (mc *Cluster) AllocID() (uint64, error) {
 	return mc.storage.AllocID()
 }
 
+func (mc *Cluster) NextShardEpoch(id uint64) (uint64, error) {
+	return mc.storage.AllocShardLeaseEpoch(id)
+}
+
 // ScanShards scans resource with start key, until number greater than limit.
 func (mc *Cluster) ScanShards(group uint64, startKey, endKey []byte, limit int) []*core.CachedShard {
 	return mc.Shards.ScanRange(group, startKey, endKey, limit)

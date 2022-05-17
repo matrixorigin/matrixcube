@@ -225,6 +225,38 @@ func TestUpStore(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "not found"))
 }
 
+func TestShardHeartbeatWithLease(t *testing.T) {
+	_, opt, err := newTestScheduleConfig()
+	assert.NoError(t, err)
+
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
+	stores := newTestStores(3, "2.0.0")
+	for _, store := range stores {
+		assert.NoError(t, cluster.putStoreLocked(store))
+	}
+
+	shards := newTestShards(1, 3)
+	shard := shards[0]
+
+	assert.NoError(t, cluster.processShardHeartbeat(shard))
+	assert.Nil(t, cluster.GetShard(shard.Meta.ID).GetLease())
+
+	// first lease
+	newShard := shard.Clone(core.WithLease(&metapb.EpochLease{Epoch: 1, ReplicaID: shard.Meta.Replicas[0].ID}))
+	assert.NoError(t, cluster.processShardHeartbeat(newShard))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 1, ReplicaID: shard.Meta.Replicas[0].ID}, cluster.GetShard(shard.Meta.ID).GetLease())
+
+	// new lease
+	newShard = shard.Clone(core.WithLease(&metapb.EpochLease{Epoch: 2, ReplicaID: shard.Meta.Replicas[1].ID}))
+	assert.NoError(t, cluster.processShardHeartbeat(newShard))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: shard.Meta.Replicas[1].ID}, cluster.GetShard(shard.Meta.ID).GetLease())
+
+	// invalid lease
+	newShard = shard.Clone(core.WithLease(&metapb.EpochLease{Epoch: 1, ReplicaID: shard.Meta.Replicas[2].ID}))
+	assert.NoError(t, cluster.processShardHeartbeat(newShard))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: shard.Meta.Replicas[1].ID}, cluster.GetShard(shard.Meta.ID).GetLease())
+}
+
 func TestShardHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)

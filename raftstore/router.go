@@ -41,16 +41,16 @@ type Router interface {
 	SelectShardByKey(group uint64, key []byte) Shard
 
 	// AscendRange iterate through all shards in order within [Start, end), and stop when fn returns false.
-	AscendRange(group uint64, start, end []byte, policy rpcpb.ReplicaSelectPolicy, fn func(shard Shard, replicaStore metapb.Store) bool)
+	AscendRange(group uint64, start, end []byte, policy rpcpb.ReplicaSelectPolicy, fn func(shard Shard, replicaStore metapb.Store, lease *metapb.EpochLease) bool)
 	// AscendRangeWithoutSelectReplica is similar to AscendRange, but do not select replica
 	AscendRangeWithoutSelectReplica(group uint64, start, end []byte, fn func(shard Shard) bool)
 
 	// SelectShardWithPolicy Select a Shard according to the specified Key, and select the Store where the
 	// Shard's Replica is located according to the ReplicaSelectPolicy.
-	SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store)
+	SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store, *metapb.EpochLease)
 	// SelectReplicaStoreWithPolicy select the Store where the shard's replica is located according to the
 	// ReplicaSelectPolicy
-	SelectReplicaStoreWithPolicy(shardID uint64, policy rpcpb.ReplicaSelectPolicy) metapb.Store
+	SelectReplicaStoreWithPolicy(shardID uint64, policy rpcpb.ReplicaSelectPolicy) (metapb.Store, *metapb.EpochLease)
 
 	// Deprecated: SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
 	// If returns leader address is "", means the current shard has no leader. Use `SelectShardWithPolicy` instead.
@@ -64,6 +64,8 @@ type Router interface {
 
 	// UpdateLeader update shard leader
 	UpdateLeader(shardID uint64, leaderReplciaID uint64)
+	// UpdateLease update lease
+	UpdateLease(shardID uint64, lease *metapb.EpochLease)
 	// UpdateShard update shard metadata
 	UpdateShard(shard Shard)
 	// UpdateStore update store metadata
@@ -86,6 +88,11 @@ type op struct {
 
 func (o *op) next() uint64 {
 	return atomic.AddUint64(&o.value, 1)
+}
+
+type leaseInfo struct {
+	lease *metapb.EpochLease
+	store metapb.Store
 }
 
 type routerOptions struct {
@@ -145,9 +152,11 @@ type defaultRouter struct {
 
 		keyRanges                map[uint64]*util.ShardTree   // shard.Group -> *util.ShardTree
 		leaders                  map[uint64]metapb.Store      // shard id -> leader replica store
+		leases                   map[uint64]leaseInfo         // shard id -> leaseInfo
 		stores                   map[uint64]metapb.Store      // store id -> metapb.Store metadata
 		shards                   map[uint64]Shard             // shard id -> metapb.Shard
 		missingLeaderStoreShards map[uint64]Replica           // shard id -> Replica
+		missingLeaseStoreShards  map[uint64]leaseInfo         // shard id -> leaseInfo
 		opts                     map[uint64]op                // shard id -> op
 		shardStats               map[uint64]metapb.ShardStats // shard id -> metapb.ShardStats
 		storeStats               map[uint64]metapb.StoreStats // store id -> metapb.StoreStats
@@ -164,9 +173,11 @@ func newRouter(eventC chan rpcpb.EventNotify, options *routerOptions) (Router, e
 	}
 	r.mu.keyRanges = make(map[uint64]*util.ShardTree)
 	r.mu.leaders = make(map[uint64]metapb.Store)
+	r.mu.leases = make(map[uint64]leaseInfo)
 	r.mu.stores = make(map[uint64]metapb.Store)
 	r.mu.shards = make(map[uint64]metapb.Shard)
 	r.mu.missingLeaderStoreShards = make(map[uint64]Replica)
+	r.mu.missingLeaseStoreShards = make(map[uint64]leaseInfo)
 	r.mu.opts = make(map[uint64]op)
 	r.mu.shardStats = make(map[uint64]metapb.ShardStats)
 	r.mu.storeStats = make(map[uint64]metapb.StoreStats)
@@ -193,20 +204,21 @@ func (r *defaultRouter) SelectShardByKey(group uint64, key []byte) Shard {
 }
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
-	shard, store := r.SelectShardWithPolicy(group, key, rpcpb.SelectLeader)
+	shard, store, _ := r.SelectShardWithPolicy(group, key, rpcpb.SelectLeader)
 	return shard, store.ClientAddress
 }
 
 func (r *defaultRouter) AscendRange(group uint64, start, end []byte,
 	policy rpcpb.ReplicaSelectPolicy,
-	fn func(shard Shard, replciaStore metapb.Store) bool) {
+	fn func(shard Shard, replciaStore metapb.Store, lease *metapb.EpochLease) bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if tree, ok := r.mu.keyRanges[group]; ok {
 		tree.AscendRange(start, end, func(shard *metapb.Shard) bool {
 			s := *shard
-			return fn(s, r.selectReplicaStoreByPolicyLocked(s, policy))
+			store, lease := r.selectReplicaStoreByPolicyLocked(s, policy)
+			return fn(s, store, lease)
 		})
 	}
 }
@@ -225,31 +237,35 @@ func (r *defaultRouter) AscendRangeWithoutSelectReplica(group uint64,
 	}
 }
 
-func (r *defaultRouter) SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store) {
+func (r *defaultRouter) SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store, *metapb.EpochLease) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	shard := r.searchShardLocked(group, key)
-	return shard, r.selectReplicaStoreByPolicyLocked(shard, policy)
+	store, lease := r.selectReplicaStoreByPolicyLocked(shard, policy)
+	return shard, store, lease
 }
 
-func (r *defaultRouter) SelectReplicaStoreWithPolicy(shardID uint64, policy rpcpb.ReplicaSelectPolicy) metapb.Store {
+func (r *defaultRouter) SelectReplicaStoreWithPolicy(shardID uint64, policy rpcpb.ReplicaSelectPolicy) (metapb.Store, *metapb.EpochLease) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	shard, ok := r.mu.shards[shardID]
 	if !ok {
-		return metapb.Store{}
+		return metapb.Store{}, nil
 	}
 
 	return r.selectReplicaStoreByPolicyLocked(shard, policy)
 }
 
-func (r *defaultRouter) selectReplicaStoreByPolicyLocked(shard Shard, policy rpcpb.ReplicaSelectPolicy) metapb.Store {
+func (r *defaultRouter) selectReplicaStoreByPolicyLocked(shard Shard, policy rpcpb.ReplicaSelectPolicy) (metapb.Store, *metapb.EpochLease) {
 	switch policy {
 	case rpcpb.SelectLeader:
-		return r.getLeaderReplicaStoreLocked(shard.ID)
+		return r.getLeaderReplicaStoreLocked(shard.ID), nil
 	case rpcpb.SelectRandom:
-		return r.mustGetStoreLocked(r.selectStoreLocked(shard))
+		return r.mustGetStoreLocked(r.selectStoreLocked(shard)), nil
+	case rpcpb.SelectLeaseHolder:
+		info := r.getLeaseReplicaStoreLocked(shard.ID)
+		return info.store, info.lease
 	default:
 		panic("not yet implemented")
 	}
@@ -338,11 +354,21 @@ func (r *defaultRouter) UpdateLeader(shardID uint64, leaderReplciaID uint64) {
 	r.updateLeaderLocked(shardID, leaderReplciaID)
 }
 
+func (r *defaultRouter) UpdateLease(shardID uint64, lease *metapb.EpochLease) {
+	if lease == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updateLeaseLocked(shardID, lease)
+}
+
 func (r *defaultRouter) UpdateShard(shard Shard) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.updateShardLocked(protoc.MustMarshal(&shard), 0, false, false)
+	r.updateShardLocked(protoc.MustMarshal(&shard), 0, nil, false, false)
 }
 
 func (r *defaultRouter) UpdateStore(store metapb.Store) {
@@ -385,11 +411,17 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 		}
 
 		for i, data := range evt.InitEvent.Shards {
-			r.updateShardLocked(data, evt.InitEvent.Leaders[i], false, false)
+			r.updateShardLocked(data,
+				evt.InitEvent.LeaderReplicaIDs[i],
+				&evt.InitEvent.Leases[i],
+				false, false)
 		}
 	case event.ShardEvent:
-		r.updateShardLocked(evt.ShardEvent.Data, evt.ShardEvent.Leader,
-			evt.ShardEvent.Removed, evt.ShardEvent.Create)
+		r.updateShardLocked(evt.ShardEvent.Data,
+			evt.ShardEvent.LeaderReplicaID,
+			evt.ShardEvent.Lease,
+			evt.ShardEvent.Removed,
+			evt.ShardEvent.Create)
 	case event.StoreEvent:
 		r.updateStoreLocked(evt.StoreEvent.Data)
 	case event.ShardStatsEvent:
@@ -399,7 +431,11 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	}
 }
 
-func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, removed bool, create bool) {
+func (r *defaultRouter) updateShardLocked(
+	data []byte,
+	leaderReplicaID uint64,
+	lease *metapb.EpochLease,
+	removed bool, create bool) {
 	res := metapb.Shard{}
 	err := res.Unmarshal(data)
 	if err != nil {
@@ -439,6 +475,10 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 	if leaderReplicaID > 0 {
 		r.updateLeaderLocked(res.GetID(), leaderReplicaID)
 	}
+
+	if lease.GetReplicaID() > 0 {
+		r.updateLeaseLocked(res.GetID(), lease)
+	}
 }
 
 func (r *defaultRouter) updateStoreLocked(data []byte) {
@@ -455,6 +495,14 @@ func (r *defaultRouter) updateStoreLocked(data []byte) {
 		if v.StoreID == s.GetID() {
 			if _, ok := r.mu.shards[k]; ok {
 				r.updateLeaderLocked(k, v.ID)
+			}
+		}
+	}
+
+	for k, v := range r.mu.missingLeaseStoreShards {
+		if v.store.ID == s.GetID() {
+			if _, ok := r.mu.shards[k]; ok {
+				r.updateLeaseLocked(k, v.lease)
 			}
 		}
 	}
@@ -482,6 +530,37 @@ func (r *defaultRouter) updateLeaderLocked(shardID, leaderReplicaID uint64) {
 	}
 
 	r.logger.Info("skip shard leader",
+		log.ShardIDField(shardID),
+		log.ReasonField("missing store"))
+}
+
+func (r *defaultRouter) updateLeaseLocked(shardID uint64, lease *metapb.EpochLease) {
+	if l, ok := r.mu.leases[shardID]; ok &&
+		l.lease.GE(lease) {
+		return
+	}
+
+	shard := r.mustGetShardLocked(shardID)
+
+	for _, p := range shard.Replicas {
+		if p.ID == lease.ReplicaID {
+			if s, ok := r.mu.stores[p.StoreID]; ok {
+				delete(r.mu.missingLeaseStoreShards, shardID)
+				r.mu.leases[shard.ID] = leaseInfo{lease: lease, store: s}
+				r.logger.Info("shard lease updated",
+					log.ShardIDField(shardID),
+					log.ReplicaField("lease-replica", p),
+					zap.String("address", s.ClientAddress))
+				return
+			}
+
+			// wait store event
+			r.mu.missingLeaseStoreShards[shardID] = leaseInfo{lease: lease, store: metapb.Store{ID: p.StoreID}}
+			break
+		}
+	}
+
+	r.logger.Info("skip shard lease",
 		log.ShardIDField(shardID),
 		log.ReasonField("missing store"))
 }
@@ -530,6 +609,15 @@ func (r *defaultRouter) getLeaderReplicaStoreLocked(shardID uint64) metapb.Store
 	r.logger.Debug("missing leader",
 		log.ShardIDField(shardID))
 	return metapb.Store{}
+}
+
+func (r *defaultRouter) getLeaseReplicaStoreLocked(shardID uint64) leaseInfo {
+	if value, ok := r.mu.leases[shardID]; ok {
+		return value
+	}
+	r.logger.Debug("missing lease",
+		log.ShardIDField(shardID))
+	return leaseInfo{}
 }
 
 func (r *defaultRouter) selectStoreLocked(shard Shard) uint64 {

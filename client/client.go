@@ -90,6 +90,13 @@ func WithReplicaSelectPolicy(policy rpcpb.ReplicaSelectPolicy) Option {
 	}
 }
 
+// WithLease set the Lease for request
+func WithLease(lease *metapb.EpochLease) Option {
+	return func(req *rpcpb.Request) {
+		req.Lease = lease
+	}
+}
+
 // Client is a cube client, providing read and write access to the external.
 type Client interface {
 	// Start start the cube client

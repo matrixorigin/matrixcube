@@ -22,5 +22,6 @@ func HasError(err Error) bool {
 func Retryable(err Error) bool {
 	return HasError(err) &&
 		err.RaftEntryTooLarge == nil && // can not retry
-		err.ShardUnavailable == nil
+		err.ShardUnavailable == nil &&
+		err.LeaseMismatch == nil
 }

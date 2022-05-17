@@ -341,11 +341,12 @@ message ShardMetadata {
 
 // ShardLocalState shard local state
 message ShardLocalState {
-    Shard     shard = 1 [(gogoproto.nullable) = false];
-    ReplicaState state = 2;
+    Shard     shard    = 1 [(gogoproto.nullable) = false];
+    EpochLease lease   = 2;
+    ReplicaState state = 3;
     // RemoveData Whether or not the local Shard data needs to be deleted,
     // which needs to be specified when the Shard status is set to Destroying
-    bool removeData = 3;
+    bool removeData    = 4;
 }
 
 // Store the host store metadata
@@ -411,4 +412,17 @@ message ShardsPoolAllocCmd {
 message SnapshotInfo {
     uint64 extra = 1;
     bool   dummy = 2;
+}
+
+// EpochLease an Epoch-based Lease. A Shard has one and only one Replica that 
+// can hold a Lease, and all read and write requests to the Shard need to be 
+// initiated by the node holding the Lease. In most cases, the Replica holding 
+// the Lease is the Raft Leader, except for a short period of inconsistency when 
+// the Raft Leader switches. When Prophet finds that the Lease's holding Replica 
+// is inconsistent with Raft's Leader Replica, it will initiate the Lease switch.
+message EpochLease {
+    // Epoch lease epoch, each time a Lease switch occurs, the epoch is increased
+    uint64 epoch     = 1;
+    // ReplicaID lease holding replica
+    uint64 replicaID = 2;
 }

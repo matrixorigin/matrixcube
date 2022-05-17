@@ -72,6 +72,13 @@ func WithLeader(leader *metapb.Replica) ShardCreateOption {
 	}
 }
 
+// WithLease sets the lease for the shard.
+func WithLease(lease *metapb.EpochLease) ShardCreateOption {
+	return func(res *CachedShard) {
+		res.lease = lease
+	}
+}
+
 // WithStartKey sets the start key for the shard.
 func WithStartKey(key []byte) ShardCreateOption {
 	return func(res *CachedShard) {

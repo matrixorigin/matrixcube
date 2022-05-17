@@ -26,6 +26,8 @@ type Batch struct {
 
 // KV is an abstract interface for load/save prophet cluster data.
 type KV interface {
+	// Incr incr uint64 value of key
+	Incr(key string) (uint64, error)
 	// Batch do batch
 	Batch(batch *Batch) error
 	// Save save key-value paire to storage

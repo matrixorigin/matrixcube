@@ -82,6 +82,13 @@ func NewStore() *Store {
 	return &Store{}
 }
 
+// Clone clones the shard returns the pointer
+func (m *Store) Clone() *Store {
+	value := &Store{}
+	protoc.MustUnmarshal(value, protoc.MustMarshal(m))
+	return value
+}
+
 func (m *Store) GetVersionAndGitHash() (string, string) {
 	return m.Version, m.CommitID
 }
@@ -136,4 +143,19 @@ func (m *Shard) MinEnd(end []byte) []byte {
 		return end
 	}
 	return m.End
+}
+
+// Match return true if two lease are matched
+func (m *EpochLease) Match(target *EpochLease) bool {
+	return m.GetEpoch() == target.GetEpoch() && m.GetReplicaID() == target.GetReplicaID()
+}
+
+// GE return true if current lease >= target lease
+func (m *EpochLease) GE(target *EpochLease) bool {
+	return m.Epoch >= target.Epoch
+}
+
+// LT return true if current lease < target lease
+func (m *EpochLease) LT(target *EpochLease) bool {
+	return m.Epoch < target.Epoch
 }

@@ -246,6 +246,7 @@ func (pr *replica) proposeConfChangeInternal(c batch) error {
 	pr.logger.Info("propose conf change",
 		log.ConfigChangesField("changes", changes))
 
+	// TODO: use raft.ErrProposalDropped to check
 	index := pr.nextProposalIndex()
 	if err := pr.rn.ProposeConfChange(cc); err != nil {
 		return err

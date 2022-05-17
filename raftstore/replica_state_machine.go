@@ -21,6 +21,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -92,9 +93,11 @@ type stateMachine struct {
 	wc                       *logdb.WorkerContext
 	replicaCreatorFactory    replicaCreatorFactory
 	resultHandler            replicaResultHandler
+	aware                    aware.ShardStateAware
 
 	metadataMu struct {
 		sync.Mutex
+		lease   *EpochLease
 		shard   Shard
 		removed bool
 		splited bool
@@ -105,9 +108,14 @@ type stateMachine struct {
 	}
 }
 
-func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
-	shard Shard, replica Replica, h replicaResultHandler,
-	replicaCreatorFactory replicaCreatorFactory) *stateMachine {
+func newStateMachine(l *zap.Logger,
+	ds storage.DataStorage,
+	ldb logdb.LogDB,
+	shard Shard,
+	replica Replica,
+	h replicaResultHandler,
+	replicaCreatorFactory replicaCreatorFactory,
+	aware aware.ShardStateAware) *stateMachine {
 	sm := &stateMachine{
 		logger:                l,
 		shardID:               shard.ID,
@@ -118,6 +126,7 @@ func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 		logdb:                 ldb,
 		resultHandler:         h,
 		replicaCreatorFactory: replicaCreatorFactory,
+		aware:                 aware,
 	}
 	if ldb != nil {
 		sm.wc = ldb.NewWorkerContext()
@@ -139,6 +148,22 @@ func (d *stateMachine) getShard() Shard {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.shard
+}
+
+func (d *stateMachine) updateLease(lease *EpochLease) {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	d.metadataMu.lease = lease
+
+	if d.aware != nil {
+		d.aware.LeaseChanged(d.metadataMu.shard, lease, d.replica)
+	}
+}
+
+func (d *stateMachine) getLease() *EpochLease {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	return d.metadataMu.lease
 }
 
 func (d *stateMachine) getConfState() raftpb.ConfState {
@@ -263,6 +288,15 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 				log.IndexField(ctx.index))
 		}
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
+	} else if !d.checkLease(ctx.req) {
+		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
+			ce.Write(log.IndexField(ctx.index),
+				log.ReasonField("epoch lease failed"),
+				zap.Stringer("current-lease", d.metadataMu.lease),
+				zap.Stringer("request-lease", ctx.req.Header.Lease),
+				log.IndexField(ctx.index))
+		}
+		resp = errorLeaseMismatchResp(ctx.req.Header.ID, d.shardID, ctx.req.Header.Lease, d.metadataMu.lease)
 	} else {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to apply committed log"); ce != nil {
 			ce.Write(log.IndexField(ctx.index),
@@ -378,6 +412,13 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 
 func (d *stateMachine) checkEpoch(req rpcpb.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
+}
+
+func (d *stateMachine) checkLease(req rpcpb.RequestBatch) bool {
+	if req.Header.Lease == nil {
+		return true
+	}
+	return d.metadataMu.lease.Match(req.Header.Lease)
 }
 
 func isConfigChangeEntry(entry raftpb.Entry) bool {

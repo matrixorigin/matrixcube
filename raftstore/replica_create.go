@@ -248,6 +248,7 @@ func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state metapb.ShardLocalSta
 			CustomType: uint64(rpcpb.CmdUpdateMetadata),
 			Epoch:      state.Shard.Epoch,
 			Cmd: protoc.MustMarshal(&rpcpb.UpdateMetadataRequest{
+				// TODO: use leader as lease
 				Metadata: state,
 			}),
 		},

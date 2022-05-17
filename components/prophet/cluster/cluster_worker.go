@@ -335,7 +335,7 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 
 	c.core.AddRemovedShards(request.RemoveShards.IDs...)
 	for _, shard := range origin {
-		c.addNotifyLocked(event.NewShardEvent(shard, 0, true, false))
+		c.addNotifyLocked(event.NewShardEvent(shard, 0, nil, true, false))
 	}
 
 	return &rpcpb.RemoveShardsRsp{}, nil
@@ -425,7 +425,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 
 func (c *RaftCluster) doNotifyCreateShards() {
 	c.core.ForeachWaitingCreateShards(func(res metapb.Shard) {
-		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
+		c.addNotifyLocked(event.NewShardEvent(res, 0, nil, false, true))
 	})
 }
 

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
@@ -35,7 +36,35 @@ var (
 
 	infoStaleCMD  = new(errorpb.StaleCommand)
 	storeMismatch = new(errorpb.StoreMismatch)
+
+	// ErrTimeout timeout error
+	ErrTimeout = errors.New("exec timeout")
+	// ErrKeysNotInShard keys not in shard, request data needs to be split
+	ErrKeysNotInShard = errors.New("keys not in shard, request data needs to be split")
 )
+
+type ShardLeaseMismatchErr struct {
+	err string
+}
+
+// NewShardLeaseMismatchErr returns a wrapped error that request lease and current lease not not match
+func NewShardLeaseMismatchErr(id uint64, requestLease, currentLease *metapb.EpochLease) error {
+	return ShardLeaseMismatchErr{err: fmt.Sprintf("shard %d request lease and current lease not not match, request lease %+v, replica held lease %+v",
+		id,
+		requestLease,
+		currentLease)}
+}
+
+// String implements error interface
+func (err ShardLeaseMismatchErr) Error() string {
+	return err.err
+}
+
+// IsShardLeaseMismatchErr checks if an error is ShardLeaseMismatchErr
+func IsShardLeaseMismatchErr(err error) bool {
+	_, ok := err.(ShardLeaseMismatchErr)
+	return ok
+}
 
 // ShardUnavailableErr is an error indicates the shard is unavailable
 type ShardUnavailableErr struct {
@@ -93,6 +122,17 @@ func errorStaleEpochResp(id []byte,
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
 		NewShards: newShards,
+	}
+	return resp
+}
+
+func errorLeaseMismatchResp(id []byte, shardID uint64, requestLease, heldLease *metapb.EpochLease) rpcpb.ResponseBatch {
+	resp := errorBaseResp(id)
+	resp.Header.Error.Message = "lease mismatch"
+	resp.Header.Error.LeaseMismatch = &errorpb.LeaseMismatch{
+		ShardID:          shardID,
+		RequestLease:     requestLease,
+		ReplicaHeldLease: heldLease,
 	}
 	return resp
 }

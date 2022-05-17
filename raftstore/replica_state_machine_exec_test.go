@@ -130,6 +130,7 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 			},
 		}
 		sm.updateShard(shard)
+		sm.updateLease(&metapb.EpochLease{Epoch: 1, ReplicaID: shard.Replicas[0].ID})
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
 			rpcpb.CmdConfigChange,
@@ -157,6 +158,11 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 			require.Equal(t, 1, len(shard.Replicas))
 		}
 
+		if removeReplica.ID == 100 {
+			assert.Nil(t, sm.getLease())
+		} else {
+			assert.Equal(t, &metapb.EpochLease{Epoch: 1, ReplicaID: shard.Replicas[0].ID}, sm.getLease())
+		}
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
@@ -267,6 +273,46 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, metapb.ReplicaState_Normal, metadata[2].Metadata.State)
 	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
+}
+
+func TestDoExecUpdateLease(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
+	pr := newTestReplica(Shard{ID: 1,
+		Epoch:    Epoch{Generation: 2},
+		Replicas: []Replica{{ID: 2}, {ID: 3}, {ID: 4}}},
+		Replica{ID: 2}, s)
+	ctx := newApplyContext()
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 1, ReplicaID: 2},
+	}))
+	resp, err := pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 1, ReplicaID: 2}, pr.getLease())
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 2, ReplicaID: 3},
+	}))
+	resp, err = pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: 3}, pr.getLease())
+
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdUpdateEpochLease, protoc.MustMarshal(&rpcpb.UpdateEpochLeaseRequest{
+		ShardID: 1,
+		Lease:   metapb.EpochLease{Epoch: 1, ReplicaID: 1},
+	}))
+	resp, err = pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, &metapb.EpochLease{Epoch: 2, ReplicaID: 3}, pr.getLease())
 }
 
 type testDataStorage struct {

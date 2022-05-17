@@ -450,7 +450,7 @@ func DistinctScore(labels []string, stores []*CachedStore, other *CachedStore) f
 // ones.
 // ones.
 func (cr *CachedStore) MergeLabels(labels []metapb.Label) []metapb.Label {
-	storeLabels := cr.Meta.GetLabels()
+	storeLabels := cr.Meta.Clone().GetLabels()
 L:
 	for _, newLabel := range labels {
 		for idx := range storeLabels {

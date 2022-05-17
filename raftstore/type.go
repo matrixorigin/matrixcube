@@ -23,3 +23,5 @@ type Shard = metapb.Shard
 type Replica = metapb.Replica
 
 type Epoch = metapb.ShardEpoch
+
+type EpochLease = metapb.EpochLease

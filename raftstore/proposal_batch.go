@@ -143,6 +143,7 @@ func (b *proposalBatch) push(group uint64, c reqCtx) {
 
 	if !added {
 		rb := rpcpb.RequestBatch{}
+		rb.Header.Lease = req.Lease
 		rb.Header.ShardID = b.shardID
 		rb.Header.Replica = b.replica
 		rb.Header.ID = uuid.NewV4().Bytes()

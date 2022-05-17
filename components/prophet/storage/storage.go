@@ -77,6 +77,9 @@ type CustomDataStorage interface {
 
 // ShardStorage resource storage
 type ShardStorage interface {
+	// AllocShardLeaseEpoch alloc lease epoch
+	AllocShardLeaseEpoch(id uint64) (uint64, error)
+
 	// PutShard puts the meta to the storage
 	PutShard(meta metapb.Shard) error
 	// PutShards put resource in batch
@@ -163,6 +166,7 @@ type storage struct {
 	configPath               string
 	resourcePath             string
 	resourceExtraPath        string
+	resourceLeaseEpochPath   string
 	scheduleGroupRulePath    string
 	containerPath            string
 	rulePath                 string
@@ -189,6 +193,7 @@ func NewStorage(rootPath string, kv KV, idGen id.Generator) Storage {
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
 		resourceExtraPath:        fmt.Sprintf("%s/resources-extra", rootPath),
+		resourceLeaseEpochPath:   fmt.Sprintf("%s/resources-lease-epoch", rootPath),
 		scheduleGroupRulePath:    fmt.Sprintf("%s/schdule-group-rules", rootPath),
 		containerPath:            fmt.Sprintf("%s/containers", rootPath),
 		rulePath:                 fmt.Sprintf("%s/rules", rootPath),
@@ -307,6 +312,10 @@ func (s *storage) SaveJSON(prefix, key string, data interface{}) error {
 		return err
 	}
 	return s.kv.Save(path.Join(prefix, key), string(value))
+}
+
+func (s *storage) AllocShardLeaseEpoch(id uint64) (uint64, error) {
+	return s.kv.Incr(s.getKey(id, s.resourceLeaseEpochPath))
 }
 
 func (s *storage) PutShard(meta metapb.Shard) error {

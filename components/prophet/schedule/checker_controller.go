@@ -34,6 +34,7 @@ type CheckerController struct {
 	cluster             opt.Cluster
 	opts                *config.PersistOptions
 	opController        *OperatorController
+	leaseChecker        *checker.LeaseChecker
 	learnerChecker      *checker.LearnerChecker
 	replicaChecker      *checker.ReplicaChecker
 	ruleChecker         *checker.RuleChecker
@@ -55,6 +56,7 @@ func NewCheckerController(ctx context.Context, cluster opt.Cluster, ruleManager 
 		ruleChecker:         checker.NewRuleChecker(cluster, ruleManager, resourceWaitingList),
 		mergeChecker:        checker.NewMergeChecker(ctx, cluster),
 		jointStateChecker:   checker.NewJointStateChecker(cluster),
+		leaseChecker:        checker.NewLeaseChecker(cluster),
 		resourceWaitingList: resourceWaitingList,
 	}
 }
@@ -110,6 +112,11 @@ func (c *CheckerController) CheckShard(res *core.CachedShard) []*operator.Operat
 			}
 		}
 	}
+
+	if op := c.leaseChecker.Check(res); op != nil {
+		return []*operator.Operator{op}
+	}
+
 	return nil
 }
 

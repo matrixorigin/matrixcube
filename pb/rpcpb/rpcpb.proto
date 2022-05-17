@@ -123,6 +123,7 @@ message ShardHeartbeatReq {
      repeated metapb.Replica      pendingReplicas = 6 [(gogoproto.nullable) = false];
      metapb.ShardStats            stats            = 7 [(gogoproto.nullable) = false];
      string                       groupKey         = 8;
+     metapb.EpochLease    lease      = 9;
 }
    
 // ShardHeartbeatRsp shard heartbeat response.
@@ -145,13 +146,14 @@ message ShardHeartbeatRsp {
     // 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
     // finished, pd stills responses ChangePeer Adding 2, of course, we must
     // guarantee the second ChangePeer can't be applied in your application.
-    ConfigChange           configChange     = 4;
+    ConfigChange         configChange    = 4;
     TransferLeader       transferLeader  = 5;
     Merge                merge           = 6;
-    SplitShard        splitShard   = 7;
-    ConfigChangeV2         configChangeV2    = 8;
+    SplitShard           splitShard      = 7;
+    ConfigChangeV2       configChangeV2  = 8;
+    TransferLease        transferLease   = 9;
     // DestroyDirectly the shard has been removed, destroy directly without raft.
-    bool                 destroyDirectly = 9;
+    bool                 destroyDirectly = 10;
 }
 
 // PutStoreReq put store request
@@ -361,17 +363,19 @@ message EventNotify {
 
 // InitEventData init event data
 message InitEventData {
-    repeated bytes  shards  = 1;
-    repeated uint64 leaders    = 2;
-    repeated bytes  stores = 3;
+    repeated bytes  shards            = 1;
+    repeated bytes  stores            = 2;
+    repeated uint64 leaderReplicaIDs  = 3;
+    repeated metapb.EpochLease leases = 4 [(gogoproto.nullable) = false];
 }
 
 // ShardEventData shard created or updated
 message ShardEventData {
-    bytes  data    = 1;
-    uint64 leader  = 2;
-    bool   removed = 3;
-    bool   create  = 4;
+    bytes  data             = 1;
+    uint64 leaderReplicaID  = 2;
+    metapb.EpochLease lease = 3;
+    bool   removed          = 4;
+    bool   create           = 5;
 }
 
 // StoreEventData store created or updated
@@ -381,13 +385,18 @@ message StoreEventData {
 
 // ChangePeer change peer
 message ConfigChange {
-    metapb.Replica           replica       = 1 [(gogoproto.nullable) = false];
-    metapb.ConfigChangeType changeType = 2;
+    metapb.Replica           replica    = 1 [(gogoproto.nullable) = false];
+    metapb.ConfigChangeType  changeType = 2;
 }
 
 // TransferLeader transfer leader
 message TransferLeader {
     metapb.Replica replica = 1 [(gogoproto.nullable) = false];
+}
+
+// TransferLease transfer lease
+message TransferLease {
+    metapb.EpochLease lease = 1 [(gogoproto.nullable) = false];
 }
 
 // ConfigChangeV2 change peer v2
@@ -489,7 +498,9 @@ enum InternalCmd {
     // CmdUpdateMetadata update shard metadata command, admin type
     CmdUpdateMetadata   = 6;
     // CmdUpdateLabels update shard label command, admin type
-    CmdUpdateLabels     = 7;    
+    CmdUpdateLabels     = 7;
+    // CmdUpdateEpochLease update shard epoch lease
+    CmdUpdateEpochLease = 8; 
     // CmdUpdateTxnRecord update txn record command, write type
     CmdUpdateTxnRecord  = 100;
     // CmdDeleteTxnRecord delete txn record command, write type
@@ -528,6 +539,7 @@ message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
     metapb.Replica       replica          = 3 [(gogoproto.nullable) = false];
+    metapb.EpochLease    lease            = 4;
 }
 
 message ResponseBatchHeader {
@@ -560,19 +572,21 @@ message Request {
     uint64  toShard                               = 8;
     bool    ignoreEpochCheck                      = 9;
     metapb.ShardEpoch epoch                       = 10 [(gogoproto.nullable) = false];
+    // Lease lease at the time of request initiation
+    metapb.EpochLease lease                       = 11;
     // KeysRange If the current request operates on multiple Keys, then KeysRange needs 
     // to be filled in, and the client needs to split the request again if it wants to 
-    // re-route according to KeysRange after the data management scope of the Shard has changed,
-    // or if it returns the specified error.
-    Range   keysRange                             = 11;
-    ReplicaSelectPolicy replicaSelectPolicy       = 12;
+    // re-route according to KeysRange after the data management scope of the Shard has 
+    // changed, or if it returns the specified error.
+    Range   keysRange                              = 12;
+    ReplicaSelectPolicy replicaSelectPolicy        = 13;
     // TxnBatchRequest tranasction request if type == Txn
-    txnpb.TxnBatchRequest txnBatchRequest         = 13;
-    UpdateTxnRecordRequest updateTxnRecord        = 14 [(gogoproto.nullable) = false];
-    DeleteTxnRecordRequest      deleteTxnRecord        = 15 [(gogoproto.nullable) = false];
-    CommitTxnWriteDataRequest   commitTxnWriteData  = 16 [(gogoproto.nullable) = false];
-    RollbackTxnWriteDataRequest rollbackTxnRecord = 17 [(gogoproto.nullable) = false];
-    CleanTxnMVCCDataRequest     cleanTxnMVCCData  = 18 [(gogoproto.nullable) = false];
+    txnpb.TxnBatchRequest txnBatchRequest          = 14;
+    UpdateTxnRecordRequest updateTxnRecord         = 15 [(gogoproto.nullable) = false];
+    DeleteTxnRecordRequest      deleteTxnRecord    = 16 [(gogoproto.nullable) = false];
+    CommitTxnWriteDataRequest   commitTxnWriteData = 17 [(gogoproto.nullable) = false];
+    RollbackTxnWriteDataRequest rollbackTxnRecord  = 18 [(gogoproto.nullable) = false];
+    CleanTxnMVCCDataRequest     cleanTxnMVCCData   = 19 [(gogoproto.nullable) = false];
 }
 
 // Range key range [from, to)
@@ -676,6 +690,16 @@ message UpdateLabelsRequest {
 }
 
 message UpdateLabelsResponse {
+
+}
+
+
+message UpdateEpochLeaseRequest {
+    uint64 shardID = 1;
+    metapb.EpochLease lease = 2 [(gogoproto.nullable) = false];
+}
+
+message UpdateEpochLeaseResponse {
 
 }
 

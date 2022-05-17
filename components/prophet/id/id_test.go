@@ -45,7 +45,7 @@ func TestAllocID(t *testing.T) {
 	rootPath := "/root"
 	allocator := NewEtcdGenerator(rootPath, client, ls)
 
-	n := idBatch + 1
+	n := allocator.(*etcdGenerator).idBatch + 1
 	for i := uint64(1); i <= n; i++ {
 		id, err := allocator.AllocID()
 		assert.NoError(t, err)

@@ -472,6 +472,166 @@ func (m *RaftEntryTooLarge) GetEntrySize() uint64 {
 	return 0
 }
 
+// LeaseMissing lease is missing
+type LeaseMissing struct {
+	ShardID              uint64   `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	ReplicaID            uint64   `protobuf:"varint,2,opt,name=replicaID,proto3" json:"replicaID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LeaseMissing) Reset()         { *m = LeaseMissing{} }
+func (m *LeaseMissing) String() string { return proto.CompactTextString(m) }
+func (*LeaseMissing) ProtoMessage()    {}
+func (*LeaseMissing) Descriptor() ([]byte, []int) {
+	return fileDescriptor_390aa86757fd1154, []int{9}
+}
+func (m *LeaseMissing) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LeaseMissing) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LeaseMissing.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LeaseMissing) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaseMissing.Merge(m, src)
+}
+func (m *LeaseMissing) XXX_Size() int {
+	return m.Size()
+}
+func (m *LeaseMissing) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaseMissing.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaseMissing proto.InternalMessageInfo
+
+func (m *LeaseMissing) GetShardID() uint64 {
+	if m != nil {
+		return m.ShardID
+	}
+	return 0
+}
+
+func (m *LeaseMissing) GetReplicaID() uint64 {
+	if m != nil {
+		return m.ReplicaID
+	}
+	return 0
+}
+
+// LeaseMismatch request lease and replica held lease not match
+type LeaseMismatch struct {
+	ShardID              uint64             `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	RequestLease         *metapb.EpochLease `protobuf:"bytes,2,opt,name=requestLease,proto3" json:"requestLease,omitempty"`
+	ReplicaHeldLease     *metapb.EpochLease `protobuf:"bytes,3,opt,name=replicaHeldLease,proto3" json:"replicaHeldLease,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
+}
+
+func (m *LeaseMismatch) Reset()         { *m = LeaseMismatch{} }
+func (m *LeaseMismatch) String() string { return proto.CompactTextString(m) }
+func (*LeaseMismatch) ProtoMessage()    {}
+func (*LeaseMismatch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_390aa86757fd1154, []int{10}
+}
+func (m *LeaseMismatch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LeaseMismatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LeaseMismatch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LeaseMismatch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaseMismatch.Merge(m, src)
+}
+func (m *LeaseMismatch) XXX_Size() int {
+	return m.Size()
+}
+func (m *LeaseMismatch) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaseMismatch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaseMismatch proto.InternalMessageInfo
+
+func (m *LeaseMismatch) GetShardID() uint64 {
+	if m != nil {
+		return m.ShardID
+	}
+	return 0
+}
+
+func (m *LeaseMismatch) GetRequestLease() *metapb.EpochLease {
+	if m != nil {
+		return m.RequestLease
+	}
+	return nil
+}
+
+func (m *LeaseMismatch) GetReplicaHeldLease() *metapb.EpochLease {
+	if m != nil {
+		return m.ReplicaHeldLease
+	}
+	return nil
+}
+
+// LeaseReadNotReady lease held replica not ready, because some raft log need to applied.
+type LeaseReadNotReady struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LeaseReadNotReady) Reset()         { *m = LeaseReadNotReady{} }
+func (m *LeaseReadNotReady) String() string { return proto.CompactTextString(m) }
+func (*LeaseReadNotReady) ProtoMessage()    {}
+func (*LeaseReadNotReady) Descriptor() ([]byte, []int) {
+	return fileDescriptor_390aa86757fd1154, []int{11}
+}
+func (m *LeaseReadNotReady) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LeaseReadNotReady) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LeaseReadNotReady.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LeaseReadNotReady) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaseReadNotReady.Merge(m, src)
+}
+func (m *LeaseReadNotReady) XXX_Size() int {
+	return m.Size()
+}
+func (m *LeaseReadNotReady) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaseReadNotReady.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaseReadNotReady proto.InternalMessageInfo
+
 // Error is a raft error
 type Error struct {
 	Message              string             `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -484,6 +644,9 @@ type Error struct {
 	StoreMismatch        *StoreMismatch     `protobuf:"bytes,8,opt,name=storeMismatch,proto3" json:"storeMismatch,omitempty"`
 	RaftEntryTooLarge    *RaftEntryTooLarge `protobuf:"bytes,9,opt,name=raftEntryTooLarge,proto3" json:"raftEntryTooLarge,omitempty"`
 	ShardUnavailable     *ShardUnavailable  `protobuf:"bytes,10,opt,name=shardUnavailable,proto3" json:"shardUnavailable,omitempty"`
+	LeaseMissing         *LeaseMissing      `protobuf:"bytes,11,opt,name=leaseMissing,proto3" json:"leaseMissing,omitempty"`
+	LeaseMismatch        *LeaseMismatch     `protobuf:"bytes,12,opt,name=leaseMismatch,proto3" json:"leaseMismatch,omitempty"`
+	LeaseReadNotReady    *LeaseReadNotReady `protobuf:"bytes,13,opt,name=leaseReadNotReady,proto3" json:"leaseReadNotReady,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -493,7 +656,7 @@ func (m *Error) Reset()         { *m = Error{} }
 func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 func (*Error) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{9}
+	return fileDescriptor_390aa86757fd1154, []int{12}
 }
 func (m *Error) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -592,6 +755,27 @@ func (m *Error) GetShardUnavailable() *ShardUnavailable {
 	return nil
 }
 
+func (m *Error) GetLeaseMissing() *LeaseMissing {
+	if m != nil {
+		return m.LeaseMissing
+	}
+	return nil
+}
+
+func (m *Error) GetLeaseMismatch() *LeaseMismatch {
+	if m != nil {
+		return m.LeaseMismatch
+	}
+	return nil
+}
+
+func (m *Error) GetLeaseReadNotReady() *LeaseReadNotReady {
+	if m != nil {
+		return m.LeaseReadNotReady
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*NotLeader)(nil), "errorpb.NotLeader")
 	proto.RegisterType((*StoreMismatch)(nil), "errorpb.StoreMismatch")
@@ -602,48 +786,59 @@ func init() {
 	proto.RegisterType((*ServerIsBusy)(nil), "errorpb.ServerIsBusy")
 	proto.RegisterType((*StaleCommand)(nil), "errorpb.StaleCommand")
 	proto.RegisterType((*RaftEntryTooLarge)(nil), "errorpb.RaftEntryTooLarge")
+	proto.RegisterType((*LeaseMissing)(nil), "errorpb.LeaseMissing")
+	proto.RegisterType((*LeaseMismatch)(nil), "errorpb.LeaseMismatch")
+	proto.RegisterType((*LeaseReadNotReady)(nil), "errorpb.LeaseReadNotReady")
 	proto.RegisterType((*Error)(nil), "errorpb.Error")
 }
 
 func init() { proto.RegisterFile("errorpb.proto", fileDescriptor_390aa86757fd1154) }
 
 var fileDescriptor_390aa86757fd1154 = []byte{
-	// 554 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x94, 0x5d, 0x6f, 0xda, 0x3e,
-	0x14, 0xc6, 0x9b, 0xf2, 0xf6, 0xcf, 0x81, 0xfc, 0x4b, 0xbd, 0x17, 0x79, 0x68, 0x62, 0x28, 0x57,
-	0x4c, 0x5a, 0x61, 0xa3, 0x57, 0x95, 0x26, 0x4d, 0x62, 0x63, 0x1a, 0x6a, 0xc7, 0x85, 0xe9, 0x3e,
-	0x80, 0x93, 0xb8, 0x21, 0x1a, 0x89, 0x91, 0x6d, 0xba, 0xb1, 0x4f, 0xd8, 0xdd, 0xf5, 0x13, 0x4c,
-	0x1b, 0x9f, 0x64, 0x8a, 0x09, 0xc1, 0x01, 0xad, 0x57, 0xe4, 0xf8, 0xfc, 0x9e, 0xc7, 0xca, 0x73,
-	0x0e, 0x01, 0x87, 0x09, 0xc1, 0xc5, 0xc2, 0xeb, 0x2d, 0x04, 0x57, 0x1c, 0xd5, 0xb2, 0xb2, 0x75,
-	0x11, 0x46, 0x6a, 0xb6, 0xf4, 0x7a, 0x3e, 0x8f, 0xfb, 0x31, 0x55, 0x22, 0xfa, 0xce, 0x45, 0x14,
-	0x46, 0x49, 0x56, 0xf8, 0x4b, 0x8f, 0xf5, 0x17, 0x5e, 0x3f, 0x66, 0x8a, 0xe6, 0x3f, 0x1b, 0x8f,
-	0xd6, 0x99, 0x21, 0x0d, 0x79, 0xc8, 0xfb, 0xfa, 0xd8, 0x5b, 0xde, 0xe8, 0x4a, 0x17, 0xfa, 0x69,
-	0x83, 0xbb, 0xd7, 0x60, 0x4f, 0xb8, 0xba, 0x62, 0x34, 0x60, 0x02, 0x61, 0xa8, 0xc9, 0x19, 0x15,
-	0xc1, 0xf8, 0x03, 0xb6, 0x3a, 0x56, 0xb7, 0x4c, 0xb6, 0x25, 0x3a, 0x83, 0xea, 0x5c, 0x33, 0xf8,
-	0xb8, 0x63, 0x75, 0xeb, 0x83, 0x93, 0x5e, 0x76, 0x29, 0x61, 0x8b, 0x79, 0xe4, 0xd3, 0x61, 0xf9,
-	0xee, 0xd7, 0x8b, 0x23, 0x92, 0x41, 0xee, 0x09, 0x38, 0x53, 0xc5, 0x05, 0xfb, 0x1c, 0xc9, 0x98,
-	0x2a, 0x7f, 0xe6, 0xbe, 0x82, 0xe6, 0x34, 0xb5, 0xfa, 0x92, 0xd0, 0x5b, 0x1a, 0xcd, 0xa9, 0x37,
-	0x67, 0xff, 0xbe, 0xcd, 0x7d, 0x09, 0x8e, 0xa6, 0x27, 0x5c, 0x7d, 0xe4, 0xcb, 0x24, 0x78, 0x00,
-	0xf5, 0xc1, 0xb9, 0x64, 0xab, 0x09, 0x57, 0xe3, 0x44, 0x4b, 0x50, 0x13, 0x4a, 0x5f, 0xd9, 0x4a,
-	0x63, 0x0d, 0x92, 0x3e, 0x9a, 0xe2, 0xe3, 0xe2, 0x5b, 0x3d, 0x86, 0x8a, 0x54, 0x54, 0x28, 0x5c,
-	0xd2, 0xf4, 0xa6, 0x48, 0x1d, 0x58, 0x12, 0xe0, 0xf2, 0xc6, 0x81, 0x25, 0x81, 0xfb, 0x0e, 0x60,
-	0xaa, 0xe8, 0x9c, 0x8d, 0x16, 0xdc, 0x9f, 0xa1, 0x37, 0x60, 0x27, 0xec, 0x9b, 0xbe, 0x4d, 0x62,
-	0xab, 0x53, 0xea, 0xd6, 0x07, 0xce, 0x36, 0x0e, 0x7d, 0x9a, 0x85, 0xb1, 0xa3, 0xdc, 0xff, 0xa1,
-	0x31, 0x65, 0xe2, 0x96, 0x89, 0xb1, 0x1c, 0x2e, 0xe5, 0x4a, 0xd7, 0xa9, 0xe1, 0x7b, 0x1e, 0xc7,
-	0x34, 0x09, 0xdc, 0x4b, 0x38, 0x25, 0xf4, 0x46, 0x8d, 0x12, 0x25, 0x56, 0xd7, 0x9c, 0x5f, 0x51,
-	0x11, 0x3e, 0x90, 0x0f, 0x7a, 0x0e, 0x36, 0x4b, 0xd1, 0x69, 0xf4, 0x83, 0x65, 0xef, 0xb4, 0x3b,
-	0x70, 0x7f, 0x96, 0xa1, 0x32, 0x4a, 0x17, 0x29, 0x75, 0x88, 0x99, 0x94, 0x34, 0x64, 0xda, 0xc1,
-	0x26, 0xdb, 0x12, 0xbd, 0x06, 0x3b, 0xd9, 0x8e, 0x3d, 0x1b, 0x29, 0xea, 0x6d, 0x97, 0x31, 0x5f,
-	0x08, 0xb2, 0x83, 0xd0, 0x5b, 0x70, 0xa4, 0x39, 0x13, 0x9d, 0x59, 0x7d, 0xf0, 0x34, 0x57, 0x15,
-	0x26, 0x46, 0x8a, 0x70, 0xaa, 0x2e, 0x8c, 0x49, 0xa7, 0x6b, 0xaa, 0x0b, 0x5d, 0xb2, 0x37, 0xd3,
-	0x73, 0x00, 0x99, 0xe7, 0x8f, 0x2b, 0x5a, 0xfa, 0x68, 0x77, 0x71, 0xde, 0x22, 0x06, 0x86, 0x2e,
-	0xa0, 0x21, 0x8d, 0xcc, 0x71, 0x55, 0xcb, 0x9e, 0xec, 0x64, 0x46, 0x93, 0x14, 0x50, 0x2d, 0x35,
-	0xc6, 0x83, 0x6b, 0xfb, 0x52, 0xa3, 0x49, 0x0a, 0xa8, 0x8e, 0xc9, 0xdc, 0x7c, 0xfc, 0xdf, 0x7e,
-	0x4c, 0x66, 0x97, 0x14, 0x61, 0xf4, 0x09, 0x4e, 0xc5, 0xfe, 0x1e, 0x60, 0x5b, 0x3b, 0xb4, 0x72,
-	0x87, 0x83, 0x4d, 0x21, 0x87, 0x22, 0x34, 0x82, 0xa6, 0xdc, 0xfb, 0xc3, 0x61, 0xd0, 0x46, 0xcf,
-	0x8a, 0x13, 0x33, 0x00, 0x72, 0x20, 0x19, 0x36, 0xef, 0xff, 0xb4, 0x8f, 0xee, 0xd6, 0x6d, 0xeb,
-	0x7e, 0xdd, 0xb6, 0x7e, 0xaf, 0xdb, 0x96, 0x57, 0xd5, 0xdf, 0x8d, 0xf3, 0xbf, 0x01, 0x00, 0x00,
-	0xff, 0xff, 0xfa, 0x38, 0xbc, 0x30, 0xbb, 0x04, 0x00, 0x00,
+	// 673 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x54, 0xdf, 0x4e, 0xdb, 0x3e,
+	0x18, 0x25, 0x14, 0xca, 0xaf, 0x1f, 0xcd, 0x8f, 0x12, 0xb6, 0xc9, 0x43, 0x53, 0x87, 0x72, 0xc5,
+	0xa4, 0x41, 0x37, 0x90, 0x26, 0x21, 0x4d, 0x9b, 0xc4, 0x56, 0x04, 0x82, 0x71, 0xe1, 0xb2, 0x07,
+	0x70, 0x1a, 0x93, 0x46, 0x4b, 0xe2, 0xce, 0x76, 0xd9, 0xba, 0x67, 0xd8, 0x4b, 0xec, 0x6d, 0xb8,
+	0xe4, 0x09, 0xa6, 0x8d, 0x27, 0x99, 0xec, 0xfc, 0xa9, 0x9d, 0x8a, 0x5e, 0x25, 0x9f, 0xbf, 0x73,
+	0x8e, 0x9d, 0xe3, 0xf3, 0x05, 0x5c, 0xca, 0x39, 0xe3, 0xe3, 0x60, 0x7f, 0xcc, 0x99, 0x64, 0xde,
+	0x5a, 0x51, 0x6e, 0x1f, 0x45, 0xb1, 0x1c, 0x4d, 0x82, 0xfd, 0x21, 0x4b, 0x7b, 0x29, 0x91, 0x3c,
+	0xfe, 0xce, 0x78, 0x1c, 0xc5, 0x59, 0x51, 0x0c, 0x27, 0x01, 0xed, 0x8d, 0x83, 0x5e, 0x4a, 0x25,
+	0xa9, 0x1e, 0xb9, 0xc6, 0xf6, 0x9e, 0x41, 0x8d, 0x58, 0xc4, 0x7a, 0x7a, 0x39, 0x98, 0x5c, 0xeb,
+	0x4a, 0x17, 0xfa, 0x2d, 0x87, 0xfb, 0x57, 0xd0, 0xba, 0x64, 0xf2, 0x82, 0x92, 0x90, 0x72, 0x0f,
+	0xc1, 0x9a, 0x18, 0x11, 0x1e, 0x9e, 0x7d, 0x44, 0xce, 0x8e, 0xb3, 0xbb, 0x82, 0xcb, 0xd2, 0xdb,
+	0x83, 0x66, 0xa2, 0x31, 0x68, 0x79, 0xc7, 0xd9, 0x5d, 0x3f, 0xd8, 0xd8, 0x2f, 0x36, 0xc5, 0x74,
+	0x9c, 0xc4, 0x43, 0x72, 0xbc, 0x72, 0xfb, 0xfb, 0xf9, 0x12, 0x2e, 0x40, 0xfe, 0x06, 0xb8, 0x03,
+	0xc9, 0x38, 0xfd, 0x14, 0x8b, 0x94, 0xc8, 0xe1, 0xc8, 0x7f, 0x09, 0x9d, 0x81, 0x92, 0xfa, 0x9c,
+	0x91, 0x1b, 0x12, 0x27, 0x24, 0x48, 0xe8, 0xc3, 0xbb, 0xf9, 0x2f, 0xc0, 0xd5, 0xe8, 0x4b, 0x26,
+	0x4f, 0xd8, 0x24, 0x0b, 0x17, 0x40, 0x87, 0xe0, 0x9e, 0xd3, 0xe9, 0x25, 0x93, 0x67, 0x99, 0xa6,
+	0x78, 0x1d, 0x68, 0x7c, 0xa1, 0x53, 0x0d, 0x6b, 0x63, 0xf5, 0x6a, 0x92, 0x97, 0xed, 0xaf, 0x7a,
+	0x04, 0xab, 0x42, 0x12, 0x2e, 0x51, 0x43, 0xa3, 0xf3, 0x42, 0x29, 0xd0, 0x2c, 0x44, 0x2b, 0xb9,
+	0x02, 0xcd, 0x42, 0xff, 0x3d, 0xc0, 0x40, 0x92, 0x84, 0xf6, 0xc7, 0x6c, 0x38, 0xf2, 0x5e, 0x43,
+	0x2b, 0xa3, 0xdf, 0xf4, 0x6e, 0x02, 0x39, 0x3b, 0x8d, 0xdd, 0xf5, 0x03, 0xb7, 0xb4, 0x43, 0xaf,
+	0x16, 0x66, 0xcc, 0x50, 0xfe, 0xff, 0xd0, 0x1e, 0x50, 0x7e, 0x43, 0xf9, 0x99, 0x38, 0x9e, 0x88,
+	0xa9, 0xae, 0x95, 0xe0, 0x07, 0x96, 0xa6, 0x24, 0x0b, 0xfd, 0x73, 0xd8, 0xc4, 0xe4, 0x5a, 0xf6,
+	0x33, 0xc9, 0xa7, 0x57, 0x8c, 0x5d, 0x10, 0x1e, 0x2d, 0xf0, 0xc7, 0x7b, 0x06, 0x2d, 0xaa, 0xa0,
+	0x83, 0xf8, 0x07, 0x2d, 0xbe, 0x69, 0xb6, 0xe0, 0x9f, 0x40, 0xfb, 0x82, 0x12, 0xa1, 0xcc, 0x17,
+	0x71, 0x16, 0x2d, 0xd6, 0xe1, 0xf9, 0xfd, 0x55, 0xde, 0xcc, 0x16, 0xfc, 0x5f, 0x0e, 0xb8, 0xa5,
+	0x90, 0xbe, 0xc5, 0x05, 0x4a, 0x6f, 0xa0, 0xcd, 0xe9, 0xd7, 0x09, 0x15, 0x52, 0x33, 0x8a, 0x94,
+	0x78, 0xa5, 0x2d, 0xda, 0x38, 0xdd, 0xc1, 0x16, 0xce, 0x7b, 0x07, 0x9d, 0x62, 0xc3, 0x53, 0x9a,
+	0x84, 0x39, 0xb7, 0xf1, 0x20, 0x77, 0x0e, 0xeb, 0x6f, 0xc1, 0x66, 0xde, 0xa2, 0x44, 0xa5, 0x45,
+	0x3d, 0xa6, 0xfe, 0xcf, 0x26, 0xac, 0xf6, 0xd5, 0x24, 0xa9, 0x03, 0xa7, 0x54, 0x08, 0x12, 0x51,
+	0x7d, 0xe0, 0x16, 0x2e, 0x4b, 0xef, 0x15, 0xb4, 0xb2, 0x32, 0xf7, 0xd5, 0x69, 0xcb, 0x69, 0xac,
+	0x26, 0x02, 0xcf, 0x40, 0xde, 0x5b, 0x70, 0x85, 0x19, 0xca, 0xe2, 0x9c, 0x4f, 0x2a, 0x96, 0x15,
+	0x59, 0x6c, 0x83, 0x15, 0xdb, 0xca, 0xa9, 0x8e, 0x97, 0xc9, 0xb6, 0xba, 0xb8, 0x16, 0xea, 0x43,
+	0x00, 0x51, 0x05, 0x10, 0xad, 0x6a, 0xea, 0xd6, 0x6c, 0xe3, 0xaa, 0x85, 0x0d, 0x98, 0x77, 0x04,
+	0x6d, 0x61, 0x84, 0x0e, 0x35, 0x35, 0xed, 0xf1, 0x8c, 0x66, 0x34, 0xb1, 0x05, 0xd5, 0x54, 0x23,
+	0x9f, 0x68, 0xad, 0x4e, 0x35, 0x9a, 0xd8, 0x82, 0x6a, 0x9b, 0xcc, 0xd1, 0x47, 0xff, 0xd5, 0x6d,
+	0x32, 0xbb, 0xd8, 0x06, 0x7b, 0xa7, 0xb0, 0xc9, 0xeb, 0x83, 0x80, 0x5a, 0x5a, 0x61, 0xbb, 0x52,
+	0x98, 0x1b, 0x15, 0x3c, 0x4f, 0xf2, 0xfa, 0xd0, 0x11, 0xb5, 0x3f, 0x0e, 0x02, 0x2d, 0xf4, 0xd4,
+	0xbe, 0x31, 0x03, 0x80, 0xe7, 0x28, 0xca, 0x89, 0xc4, 0x18, 0x26, 0xb4, 0x5e, 0x73, 0xc2, 0x9c,
+	0x34, 0x6c, 0x41, 0x95, 0x13, 0x89, 0x39, 0x3e, 0xa8, 0x5d, 0x73, 0xc2, 0x1a, 0x2e, 0x6c, 0x83,
+	0x95, 0x13, 0x49, 0x3d, 0xd9, 0xc8, 0xad, 0x39, 0x31, 0x97, 0x7d, 0x3c, 0x4f, 0x3a, 0xee, 0xdc,
+	0xfd, 0xed, 0x2e, 0xdd, 0xde, 0x77, 0x9d, 0xbb, 0xfb, 0xae, 0xf3, 0xe7, 0xbe, 0xeb, 0x04, 0x4d,
+	0xfd, 0xef, 0x3f, 0xfc, 0x17, 0x00, 0x00, 0xff, 0xff, 0x76, 0xa2, 0x28, 0x9c, 0x7f, 0x06, 0x00,
+	0x00,
 }
 
 func (m *NotLeader) Marshal() (dAtA []byte, err error) {
@@ -903,6 +1098,104 @@ func (m *RaftEntryTooLarge) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *LeaseMissing) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LeaseMissing) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
+	}
+	if m.ReplicaID != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ReplicaID))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *LeaseMismatch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LeaseMismatch) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
+	}
+	if m.RequestLease != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.RequestLease.Size()))
+		n2, err := m.RequestLease.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	if m.ReplicaHeldLease != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ReplicaHeldLease.Size()))
+		n3, err := m.ReplicaHeldLease.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *LeaseReadNotReady) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LeaseReadNotReady) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func (m *Error) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -928,91 +1221,121 @@ func (m *Error) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintErrorpb(dAtA, i, uint64(m.NotLeader.Size()))
-		n2, err := m.NotLeader.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n2
-	}
-	if m.ShardNotFound != nil {
-		dAtA[i] = 0x1a
-		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardNotFound.Size()))
-		n3, err := m.ShardNotFound.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n3
-	}
-	if m.KeyNotInShard != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.KeyNotInShard.Size()))
-		n4, err := m.KeyNotInShard.MarshalTo(dAtA[i:])
+		n4, err := m.NotLeader.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n4
 	}
-	if m.StaleEpoch != nil {
-		dAtA[i] = 0x2a
+	if m.ShardNotFound != nil {
+		dAtA[i] = 0x1a
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleEpoch.Size()))
-		n5, err := m.StaleEpoch.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardNotFound.Size()))
+		n5, err := m.ShardNotFound.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n5
 	}
-	if m.ServerIsBusy != nil {
-		dAtA[i] = 0x32
+	if m.KeyNotInShard != nil {
+		dAtA[i] = 0x22
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ServerIsBusy.Size()))
-		n6, err := m.ServerIsBusy.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.KeyNotInShard.Size()))
+		n6, err := m.KeyNotInShard.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n6
 	}
-	if m.StaleCommand != nil {
-		dAtA[i] = 0x3a
+	if m.StaleEpoch != nil {
+		dAtA[i] = 0x2a
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleCommand.Size()))
-		n7, err := m.StaleCommand.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleEpoch.Size()))
+		n7, err := m.StaleEpoch.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n7
 	}
-	if m.StoreMismatch != nil {
-		dAtA[i] = 0x42
+	if m.ServerIsBusy != nil {
+		dAtA[i] = 0x32
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.StoreMismatch.Size()))
-		n8, err := m.StoreMismatch.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ServerIsBusy.Size()))
+		n8, err := m.ServerIsBusy.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n8
 	}
-	if m.RaftEntryTooLarge != nil {
-		dAtA[i] = 0x4a
+	if m.StaleCommand != nil {
+		dAtA[i] = 0x3a
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.RaftEntryTooLarge.Size()))
-		n9, err := m.RaftEntryTooLarge.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleCommand.Size()))
+		n9, err := m.StaleCommand.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n9
 	}
-	if m.ShardUnavailable != nil {
-		dAtA[i] = 0x52
+	if m.StoreMismatch != nil {
+		dAtA[i] = 0x42
 		i++
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardUnavailable.Size()))
-		n10, err := m.ShardUnavailable.MarshalTo(dAtA[i:])
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StoreMismatch.Size()))
+		n10, err := m.StoreMismatch.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n10
+	}
+	if m.RaftEntryTooLarge != nil {
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.RaftEntryTooLarge.Size()))
+		n11, err := m.RaftEntryTooLarge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n11
+	}
+	if m.ShardUnavailable != nil {
+		dAtA[i] = 0x52
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardUnavailable.Size()))
+		n12, err := m.ShardUnavailable.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n12
+	}
+	if m.LeaseMissing != nil {
+		dAtA[i] = 0x5a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.LeaseMissing.Size()))
+		n13, err := m.LeaseMissing.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n13
+	}
+	if m.LeaseMismatch != nil {
+		dAtA[i] = 0x62
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.LeaseMismatch.Size()))
+		n14, err := m.LeaseMismatch.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n14
+	}
+	if m.LeaseReadNotReady != nil {
+		dAtA[i] = 0x6a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.LeaseReadNotReady.Size()))
+		n15, err := m.LeaseReadNotReady.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n15
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1175,6 +1498,59 @@ func (m *RaftEntryTooLarge) Size() (n int) {
 	return n
 }
 
+func (m *LeaseMissing) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		n += 1 + sovErrorpb(uint64(m.ShardID))
+	}
+	if m.ReplicaID != 0 {
+		n += 1 + sovErrorpb(uint64(m.ReplicaID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *LeaseMismatch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		n += 1 + sovErrorpb(uint64(m.ShardID))
+	}
+	if m.RequestLease != nil {
+		l = m.RequestLease.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
+	if m.ReplicaHeldLease != nil {
+		l = m.ReplicaHeldLease.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *LeaseReadNotReady) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *Error) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1219,6 +1595,18 @@ func (m *Error) Size() (n int) {
 	}
 	if m.ShardUnavailable != nil {
 		l = m.ShardUnavailable.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
+	if m.LeaseMissing != nil {
+		l = m.LeaseMissing.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
+	if m.LeaseMismatch != nil {
+		l = m.LeaseMismatch.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
+	if m.LeaseReadNotReady != nil {
+		l = m.LeaseReadNotReady.Size()
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -2009,6 +2397,297 @@ func (m *RaftEntryTooLarge) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *LeaseMissing) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowErrorpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseMissing: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseMissing: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ShardID", wireType)
+			}
+			m.ShardID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ShardID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReplicaID", wireType)
+			}
+			m.ReplicaID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ReplicaID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipErrorpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseMismatch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowErrorpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseMismatch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseMismatch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ShardID", wireType)
+			}
+			m.ShardID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ShardID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RequestLease", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RequestLease == nil {
+				m.RequestLease = &metapb.EpochLease{}
+			}
+			if err := m.RequestLease.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReplicaHeldLease", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ReplicaHeldLease == nil {
+				m.ReplicaHeldLease = &metapb.EpochLease{}
+			}
+			if err := m.ReplicaHeldLease.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipErrorpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LeaseReadNotReady) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowErrorpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LeaseReadNotReady: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LeaseReadNotReady: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipErrorpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *Error) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2391,6 +3070,114 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 				m.ShardUnavailable = &ShardUnavailable{}
 			}
 			if err := m.ShardUnavailable.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LeaseMissing", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LeaseMissing == nil {
+				m.LeaseMissing = &LeaseMissing{}
+			}
+			if err := m.LeaseMissing.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LeaseMismatch", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LeaseMismatch == nil {
+				m.LeaseMismatch = &LeaseMismatch{}
+			}
+			if err := m.LeaseMismatch.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LeaseReadNotReady", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LeaseReadNotReady == nil {
+				m.LeaseReadNotReady = &LeaseReadNotReady{}
+			}
+			if err := m.LeaseReadNotReady.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

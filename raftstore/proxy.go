@@ -21,17 +21,13 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
 )
 
 var (
-	// ErrTimeout timeout error
-	ErrTimeout = errors.New("exec timeout")
-	// ErrKeysNotInShard keys not in shard, request data needs to be split
-	ErrKeysNotInShard = errors.New("keys not in shard, request data needs to be split")
-
 	errStopped = errors.New("stopped")
 )
 
@@ -57,7 +53,7 @@ type ShardsProxy interface {
 	Start() error
 	Stop() error
 	Dispatch(req rpcpb.Request) error
-	DispatchTo(req rpcpb.Request, shard Shard, store string) error
+	DispatchTo(req rpcpb.Request, shard Shard, store metapb.Store, lease *metapb.EpochLease) error
 	SetCallback(SuccessCallback, FailureCallback)
 	SetRetryController(retryController RetryController)
 	OnResponse(rpcpb.ResponseBatch)
@@ -205,16 +201,17 @@ func (p *shardsProxy) SetRetryController(retryController RetryController) {
 
 func (p *shardsProxy) Dispatch(req rpcpb.Request) error {
 	if req.ToShard == 0 {
-		shard, store := p.cfg.router.SelectShardWithPolicy(req.Group, req.Key, req.ReplicaSelectPolicy)
-		return p.DispatchTo(req, shard, store.ClientAddress)
+		shard, store, lease := p.cfg.router.SelectShardWithPolicy(req.Group, req.Key, req.ReplicaSelectPolicy)
+		return p.DispatchTo(req, shard, store, lease)
 	}
 
-	return p.DispatchTo(req,
-		p.cfg.router.GetShard(req.ToShard),
-		p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy).ClientAddress)
+	store, lease := p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy)
+	return p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), store, lease)
 }
 
-func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) error {
+func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, store metapb.Store, lease *metapb.EpochLease) error {
+	to := store.ClientAddress
+
 	if ce := p.logger.Check(zap.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
 			zap.Uint64("to-shard", shard.ID),
@@ -238,6 +235,10 @@ func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) erro
 	}
 
 	req.Epoch = shard.Epoch
+	// Only SelectLeaseHolder use the newest lease.
+	if req.ReplicaSelectPolicy == rpcpb.SelectLeaseHolder {
+		req.Lease = lease
+	}
 	return p.forwardToBackend(req, to)
 }
 
@@ -319,6 +320,11 @@ func (p *shardsProxy) done(rsp rpcpb.Response) {
 		if rsp.Error.ShardUnavailable != nil {
 			p.cfg.failureCallback(rsp.ID, NewShardUnavailableErr(rsp.Error.ShardUnavailable.ShardID))
 			return
+		} else if rsp.Error.LeaseMismatch != nil {
+			p.cfg.failureCallback(rsp.ID, NewShardLeaseMismatchErr(rsp.Error.LeaseMismatch.ShardID,
+				rsp.Error.LeaseMismatch.RequestLease,
+				rsp.Error.LeaseMismatch.ReplicaHeldLease))
+			return
 		}
 		p.cfg.failureCallback(rsp.ID, errors.New(rsp.Error.String()))
 		return
@@ -331,6 +337,8 @@ func (p *shardsProxy) done(rsp rpcpb.Response) {
 func (p *shardsProxy) adjustRoute(err errorpb.Error) {
 	if err.NotLeader != nil {
 		p.cfg.router.UpdateLeader(err.NotLeader.ShardID, err.NotLeader.Leader.ID)
+	} else if err.LeaseMismatch != nil {
+		p.cfg.router.UpdateLease(err.LeaseMismatch.ShardID, err.LeaseMismatch.ReplicaHeldLease)
 	}
 }
 
@@ -377,8 +385,8 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 		return
 	}
 
-	if err := p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard),
-		p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy).ClientAddress); err != nil {
+	store, lease := p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy)
+	if err := p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), store, lease); err != nil {
 		p.cfg.failureCallback(req.ID, err)
 	}
 }
