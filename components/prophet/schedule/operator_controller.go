@@ -629,6 +629,13 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedShard, step op
 				Replica: p,
 			},
 		}
+	case operator.TransferLease:
+		tl := step.(operator.TransferLease)
+		cmd = &rpcpb.ShardHeartbeatRsp{
+			TransferLease: &rpcpb.TransferLease{
+				Lease: metapb.EpochLease{Epoch: tl.LeaseEpoch, ReplicaID: tl.ToReplicaID},
+			},
+		}
 	case operator.AddPeer:
 		if _, ok := res.GetStorePeer(st.ToStore); ok {
 			// The newly added peer is pending.

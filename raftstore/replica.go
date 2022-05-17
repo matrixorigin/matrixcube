@@ -260,7 +260,8 @@ func (pr *replica) start(campaign bool) {
 
 	pr.onRaftTick(nil)
 	pr.onCheckPendingReads(nil)
-	pr.logger.Info("replica started")
+	pr.logger.Info("replica started",
+		zap.Stringer("with-lease", pr.getLease()))
 }
 
 func (pr *replica) close() {

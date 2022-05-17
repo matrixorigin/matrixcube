@@ -146,13 +146,14 @@ message ShardHeartbeatRsp {
     // 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
     // finished, pd stills responses ChangePeer Adding 2, of course, we must
     // guarantee the second ChangePeer can't be applied in your application.
-    ConfigChange           configChange     = 4;
+    ConfigChange         configChange    = 4;
     TransferLeader       transferLeader  = 5;
     Merge                merge           = 6;
-    SplitShard        splitShard   = 7;
-    ConfigChangeV2         configChangeV2    = 8;
+    SplitShard           splitShard      = 7;
+    ConfigChangeV2       configChangeV2  = 8;
+    TransferLease        transferLease   = 9;
     // DestroyDirectly the shard has been removed, destroy directly without raft.
-    bool                 destroyDirectly = 9;
+    bool                 destroyDirectly = 10;
 }
 
 // PutStoreReq put store request
@@ -391,6 +392,11 @@ message ConfigChange {
 // TransferLeader transfer leader
 message TransferLeader {
     metapb.Replica replica = 1 [(gogoproto.nullable) = false];
+}
+
+// TransferLease transfer lease
+message TransferLease {
+    metapb.EpochLease lease = 1 [(gogoproto.nullable) = false];
 }
 
 // ConfigChangeV2 change peer v2

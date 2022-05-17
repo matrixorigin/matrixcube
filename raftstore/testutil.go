@@ -593,6 +593,8 @@ type TestRaftCluster interface {
 	GetShardByIndex(node int, shardIndex int) Shard
 	// GetShardByID returns the shard from the node by shard id
 	GetShardByID(node int, shardID uint64) Shard
+	// GetShardLeaderNode returns the node index of the leader shard replica
+	GetShardLeaderNode(shardID uint64) int
 	// CheckShardCount check whether the number of shards on each node is correct
 	CheckShardCount(countPerNode int)
 	// CheckShardRange check whether the range field of the shard on each node is correct,
@@ -605,6 +607,8 @@ type TestRaftCluster interface {
 	// WaitLeadersByCount check that the number of leaders of the cluster reaches at least the specified value
 	// until the timeout
 	WaitLeadersByCount(count int, timeout time.Duration)
+	// WaitShardOldLeaderChanged check that the leader of the shard changed until the timeout
+	WaitShardOldLeaderChanged(nodes []int, shardID, oldLeaderStoreID uint64, timeout time.Duration)
 	// WaitLeadersByCountsAndShardGroupAndLabel check that the number of leaders of the cluster reaches at least the specified value
 	// until the timeout
 	WaitLeadersByCountsAndShardGroupAndLabel(counts []int, group uint64, key, value string, timeout time.Duration)
@@ -639,6 +643,8 @@ type TestRaftCluster interface {
 	WaitShardByCounts(counts []int, timeout time.Duration)
 	// WaitShardStateChangedTo check whether the state of shard changes to the specific value until timeout
 	WaitShardStateChangedTo(shardID uint64, to metapb.ShardState, timeout time.Duration)
+	// WaitShardLeaseChangedTo check whether the lease of shard changes to the specific value until timeout
+	WaitShardLeaseChangedTo(shardID uint64, lease *metapb.EpochLease, timeout time.Duration)
 	// GetShardLeaderStore return the leader node of the shard
 	GetShardLeaderStore(shardID uint64) Store
 	// GetProphet returns the prophet instance
@@ -657,8 +663,12 @@ type TestKVClient interface {
 	Get(key string, timeout time.Duration) (string, error)
 	// SetWithShard set key-value to the backend kv storage
 	SetWithShard(key, value string, id uint64, timeout time.Duration) error
+	// SetWithShardAndPolicy set key-value to the backend kv storage
+	SetWithShardAndPolicy(key, value string, shardID uint64, policy rpcpb.ReplicaSelectPolicy, timeout time.Duration) error
 	// GetWithShard returns the value of the specific key from backend kv storage
 	GetWithShard(key string, id uint64, timeout time.Duration) (string, error)
+	// GetWithShardAndPolicy returns the value of the specific key from backend kv storage
+	GetWithShardAndPolicy(key string, id uint64, policy rpcpb.ReplicaSelectPolicy, timeout time.Duration) (string, error)
 	// UpdateLabel update the shard label
 	UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error
 	// Close close the test client
@@ -696,7 +706,7 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 	return kv.SetWithShard(key, value, 0, timeout)
 }
 
-func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout time.Duration) error {
+func (kv *testKVClient) SetWithShardAndPolicy(key, value string, shardID uint64, policy rpcpb.ReplicaSelectPolicy, timeout time.Duration) error {
 	doneC := make(chan string, 1)
 	defer close(doneC)
 
@@ -709,6 +719,7 @@ func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout 
 
 	req := createTestWriteReq(id, key, value)
 	req.ToShard = shardID
+	req.ReplicaSelectPolicy = policy
 
 	kv.Lock()
 	kv.requests[id] = req
@@ -737,6 +748,10 @@ func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout 
 	case <-time.After(timeout):
 		return ErrTimeout
 	}
+}
+
+func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout time.Duration) error {
+	return kv.SetWithShardAndPolicy(key, value, shardID, rpcpb.SelectLeader, timeout)
 }
 
 func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error {
@@ -791,7 +806,7 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 	}
 }
 
-func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Duration) (string, error) {
+func (kv *testKVClient) GetWithShardAndPolicy(key string, shardID uint64, policy rpcpb.ReplicaSelectPolicy, timeout time.Duration) (string, error) {
 	doneC := make(chan string, 1)
 	defer close(doneC)
 
@@ -804,6 +819,7 @@ func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Du
 
 	req := createTestReadReq(id, key)
 	req.ToShard = shardID
+	req.ReplicaSelectPolicy = policy
 
 	kv.Lock()
 	kv.requests[id] = req
@@ -832,6 +848,10 @@ func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Du
 	case <-time.After(timeout):
 		return "", ErrTimeout
 	}
+}
+
+func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Duration) (string, error) {
+	return kv.GetWithShardAndPolicy(key, shardID, rpcpb.SelectLeader, timeout)
 }
 
 func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
@@ -1343,6 +1363,15 @@ func (c *testRaftCluster) GetShardByID(node int, shardID uint64) Shard {
 	return c.awares[node].getShardByID(shardID)
 }
 
+func (c *testRaftCluster) GetShardLeaderNode(shardID uint64) int {
+	for idx := range c.stores {
+		if c.awares[idx].isLeader(shardID) {
+			return idx
+		}
+	}
+	return 0
+}
+
 func (c *testRaftCluster) CheckShardCount(countPerNode int) {
 	for idx := range c.stores {
 		assert.Equal(c.t, countPerNode, c.GetPRCount(idx))
@@ -1366,6 +1395,28 @@ func (c *testRaftCluster) WaitRemovedByShardID(shardID uint64, timeout time.Dura
 func (c *testRaftCluster) WaitRemovedByShardIDAt(shardID uint64, nodes []int, timeout time.Duration) {
 	for _, node := range nodes {
 		c.awares[node].waitRemovedByShardID(c.t, shardID, timeout)
+	}
+}
+
+func (c *testRaftCluster) WaitShardOldLeaderChanged(nodes []int, shardID, oldLeaderStoreID uint64, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait leader changed timeout")
+		default:
+			n := 0
+			for _, idx := range nodes {
+				store, _ := c.stores[idx].router.SelectReplicaStoreWithPolicy(shardID, rpcpb.SelectLeader)
+				if store.ID != oldLeaderStoreID {
+					n++
+				}
+			}
+			if n == len(nodes) {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
 	}
 }
 
@@ -1614,6 +1665,37 @@ func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.Shar
 		default:
 			res, err := c.GetProphet().GetStorage().GetShard(shardID)
 			if err == nil && res != nil && res.GetState() == to {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitShardLeaseChangedTo(shardID uint64, lease *metapb.EpochLease, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			var ls string
+			for _, s := range c.stores {
+				_, l := s.router.SelectReplicaStoreWithPolicy(shardID, rpcpb.SelectLeaseHolder)
+				if l == nil {
+					ls += "nil,"
+				} else {
+					ls += l.String() + ","
+				}
+			}
+			assert.FailNowf(c.t, "", "wait shard lease changed to %+v timeout, %s", lease, ls)
+		default:
+			n := 0
+			for _, s := range c.stores {
+				_, l := s.router.SelectReplicaStoreWithPolicy(shardID, rpcpb.SelectLeaseHolder)
+				if lease.Match(l) {
+					n++
+				}
+			}
+			if n == int(c.stores[0].cfg.Prophet.Replication.MaxReplicas) {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)

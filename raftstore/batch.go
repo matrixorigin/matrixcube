@@ -46,6 +46,14 @@ func newBatch(logger *zap.Logger, requestBatch rpcpb.RequestBatch, cb func(rpcpb
 	}
 }
 
+func newSingleBatch(logger *zap.Logger, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) batch {
+	return batch{
+		logger:       log.Adjust(logger),
+		requestBatch: rpcpb.RequestBatch{Requests: []rpcpb.Request{req}},
+		cb:           cb,
+	}
+}
+
 func (c *batch) notifyStaleCmd() {
 	c.resp(errorStaleCMDResp(c.getRequestID()))
 }

@@ -404,7 +404,17 @@ func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBa
 			return nil
 		}
 
-		if err := s.cfg.Customize.CustomLeaseHolderRequestHandler(pr.getShard(), *req.Lease, req, cb); err != nil {
+		if err := s.cfg.Customize.CustomLeaseHolderRequestHandler(pr.getShard(),
+			*req.Lease,
+			req,
+			func(data []byte, err error) {
+				if err != nil {
+					respOtherError(err, req, cb)
+					return
+				}
+				b := newSingleBatch(s.logger, req, cb)
+				b.resp(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{Value: data}}})
+			}); err != nil {
 			respOtherError(err, req, cb)
 		}
 		return nil
@@ -1074,6 +1084,20 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 			log.ShardIDField(rsp.ShardID))
 		pr.addAdminRequest(rpcpb.CmdTransferLeader, &rpcpb.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
+		})
+	} else if rsp.TransferLease != nil {
+		lease := pr.getLease()
+		if lease != nil && lease.GE(&rsp.TransferLease.Lease) {
+			return
+		}
+
+		s.logger.Info("send transfer lease request",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID),
+			zap.Uint64("lease-epoch", rsp.TransferLease.Lease.Epoch),
+			zap.Uint64("lease-replica", rsp.TransferLease.Lease.ReplicaID))
+		pr.addAdminRequest(rpcpb.CmdUpdateEpochLease, &rpcpb.UpdateEpochLeaseRequest{
+			Lease: rsp.TransferLease.Lease,
 		})
 	} else if rsp.SplitShard != nil {
 		// currently, pd only support use keys to splits

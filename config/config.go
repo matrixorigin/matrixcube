@@ -356,7 +356,10 @@ type CustomizeConfig struct {
 	// CustomWrapNewTransport wraps new transports
 	CustomWrapNewTransport func(transport.Trans) transport.Trans `json:"-" toml:"-"`
 	// CustomLeaseHolderRequestHandler custom request handler on lease holder
-	CustomLeaseHolderRequestHandler func(shard metapb.Shard, lease metapb.EpochLease, req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error `json:"-" toml:"-"`
+	CustomLeaseHolderRequestHandler func(shard metapb.Shard,
+		lease metapb.EpochLease,
+		req rpcpb.Request,
+		cb func(resp []byte, err error)) error `json:"-" toml:"-"`
 }
 
 // GetLabels returns lables

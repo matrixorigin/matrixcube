@@ -467,7 +467,7 @@ func TestOnRequestWithLease(t *testing.T) {
 		func() {
 			s, cancel := newTestStore(t)
 			defer cancel()
-			s.cfg.Customize.CustomLeaseHolderRequestHandler = func(shard metapb.Shard, lease metapb.EpochLease, req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error {
+			s.cfg.Customize.CustomLeaseHolderRequestHandler = func(shard metapb.Shard, lease metapb.EpochLease, req rpcpb.Request, cb func(resp []byte, err error)) error {
 				return nil
 			}
 			c.pr.store = s
