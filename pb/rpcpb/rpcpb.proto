@@ -539,6 +539,7 @@ message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
     metapb.Replica       replica          = 3 [(gogoproto.nullable) = false];
+    metapb.EpochLease    lease            = 4;
 }
 
 message ResponseBatchHeader {

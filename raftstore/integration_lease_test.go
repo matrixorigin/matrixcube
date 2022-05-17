@@ -130,3 +130,29 @@ func TestLeaseRequestHandler(t *testing.T) {
 	assert.Equal(t, v1, v)
 	assert.Equal(t, 2, n)
 }
+
+func TestLeaseMismatch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
+	defer leaktest.AfterTest(t)()
+
+	c := NewSingleTestClusterStore(t)
+	c.Start()
+	defer c.Stop()
+
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	shard := c.GetShardByIndex(0, 0)
+	store := c.GetShardLeaderStore(shard.ID)
+	leaderReplicaID := findReplica(shard, store.Meta().ID).ID
+	c.WaitShardLeaseChangedTo(shard.ID, &metapb.EpochLease{Epoch: 1, ReplicaID: leaderReplicaID}, testWaitTimeout)
+
+	kv := c.CreateTestKVClientWithAdjust(0, func(req *rpcpb.Request) {
+		req.Lease = &metapb.EpochLease{Epoch: 0, ReplicaID: leaderReplicaID}
+	})
+	err := kv.Set("k1", "v1", testWaitTimeout)
+	assert.Error(t, err)
+	assert.True(t, IsShardLeaseMismatchErr(err))
+}

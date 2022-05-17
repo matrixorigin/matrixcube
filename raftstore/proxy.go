@@ -28,11 +28,6 @@ import (
 )
 
 var (
-	// ErrTimeout timeout error
-	ErrTimeout = errors.New("exec timeout")
-	// ErrKeysNotInShard keys not in shard, request data needs to be split
-	ErrKeysNotInShard = errors.New("keys not in shard, request data needs to be split")
-
 	errStopped = errors.New("stopped")
 )
 
@@ -240,7 +235,10 @@ func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, store metapb.St
 	}
 
 	req.Epoch = shard.Epoch
-	req.Lease = lease
+	// Only SelectLeaseHolder use the newest lease.
+	if req.ReplicaSelectPolicy == rpcpb.SelectLeaseHolder {
+		req.Lease = lease
+	}
 	return p.forwardToBackend(req, to)
 }
 
@@ -321,6 +319,11 @@ func (p *shardsProxy) done(rsp rpcpb.Response) {
 	if !errorpb.Retryable(rsp.Error) {
 		if rsp.Error.ShardUnavailable != nil {
 			p.cfg.failureCallback(rsp.ID, NewShardUnavailableErr(rsp.Error.ShardUnavailable.ShardID))
+			return
+		} else if rsp.Error.LeaseMismatch != nil {
+			p.cfg.failureCallback(rsp.ID, NewShardLeaseMismatchErr(rsp.Error.LeaseMismatch.ShardID,
+				rsp.Error.LeaseMismatch.RequestLease,
+				rsp.Error.LeaseMismatch.ReplicaHeldLease))
 			return
 		}
 		p.cfg.failureCallback(rsp.ID, errors.New(rsp.Error.String()))

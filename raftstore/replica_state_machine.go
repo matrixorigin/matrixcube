@@ -276,6 +276,15 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 				log.IndexField(ctx.index))
 		}
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
+	} else if !d.checkLease(ctx.req) {
+		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
+			ce.Write(log.IndexField(ctx.index),
+				log.ReasonField("epoch lease failed"),
+				zap.Stringer("current-lease", d.metadataMu.lease),
+				zap.Stringer("request-lease", ctx.req.Header.Lease),
+				log.IndexField(ctx.index))
+		}
+		resp = errorLeaseMismatchResp(ctx.req.Header.ID, d.shardID, ctx.req.Header.Lease, d.metadataMu.lease)
 	} else {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to apply committed log"); ce != nil {
 			ce.Write(log.IndexField(ctx.index),
@@ -391,6 +400,13 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 
 func (d *stateMachine) checkEpoch(req rpcpb.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
+}
+
+func (d *stateMachine) checkLease(req rpcpb.RequestBatch) bool {
+	if req.Header.Lease == nil {
+		return true
+	}
+	return d.metadataMu.lease.Match(req.Header.Lease)
 }
 
 func isConfigChangeEntry(entry raftpb.Entry) bool {

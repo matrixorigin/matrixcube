@@ -95,6 +95,28 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 	assert.Equal(t, 1, b2.size())
 }
 
+func TestProposalBatchNeverBatchesRequestsFromDifferentLease(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	r1 := newReqCtx(rpcpb.Request{
+		Type:  rpcpb.Write,
+		Lease: &metapb.EpochLease{Epoch: 1, ReplicaID: 1},
+	}, nil)
+	r2 := newReqCtx(rpcpb.Request{
+		Type:  rpcpb.Write,
+		Lease: &metapb.EpochLease{Epoch: 2, ReplicaID: 2},
+	}, nil)
+	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
+	b.push(1, r1)
+	b.push(1, r2)
+	assert.Equal(t, 2, b.size())
+
+	r2.req.Lease = &metapb.EpochLease{Epoch: 1, ReplicaID: 1}
+	b2 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
+	b2.push(1, r1)
+	b2.push(1, r2)
+	assert.Equal(t, 1, b2.size())
+}
+
 func TestProposalBatchPop(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpcpb.Request{

@@ -70,6 +70,15 @@ func (c *batch) isFull(n, max int) bool {
 }
 
 func (c *batch) canBatches(req rpcpb.Request) bool {
+	return c.canBatchesWithEpoch(req) &&
+		c.canBatchesWithLease(req)
+}
+
+func (c *batch) canBatchesWithLease(req rpcpb.Request) bool {
+	return c.requestBatch.Header.Lease.Match(req.GetLease())
+}
+
+func (c *batch) canBatchesWithEpoch(req rpcpb.Request) bool {
 	return (c.requestBatch.Requests[0].IgnoreEpochCheck && req.IgnoreEpochCheck) || // batch IgnoreEpochCheck requests
 		(epochMatch(c.requestBatch.Requests[0].Epoch, req.Epoch) && // batch epoch match requests
 			!c.requestBatch.Requests[0].IgnoreEpochCheck && !req.IgnoreEpochCheck)
