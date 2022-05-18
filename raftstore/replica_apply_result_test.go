@@ -46,6 +46,7 @@ func TestApplySplit(t *testing.T) {
 			{ID: 2, Start: []byte{1}, End: []byte{5}, Replicas: []Replica{{ID: 200}}},
 			{ID: 3, Start: []byte{5}, End: []byte{10}, Replicas: []Replica{{ID: 300}}},
 		},
+		newLeases: []*metapb.EpochLease{nil, {ReplicaID: 300}},
 	}
 	s.droppedVoteMsgs.Store(uint64(2), metapb.RaftMessage{})
 	s.droppedVoteMsgs.Store(uint64(3), metapb.RaftMessage{})
@@ -69,12 +70,14 @@ func TestApplySplit(t *testing.T) {
 	assert.Equal(t, uint64(100), pr.stats.approximateSize)
 	assert.Equal(t, uint64(100), pr.stats.approximateKeys)
 	assert.Equal(t, int64(1), pr.messages.Len())
+	assert.Nil(t, pr.getLease())
 
 	pr = s.getReplica(3, false)
 	assert.NotNil(t, pr)
 	assert.Equal(t, uint64(100), pr.stats.approximateSize)
 	assert.Equal(t, uint64(100), pr.stats.approximateKeys)
 	assert.Equal(t, int64(1), pr.messages.Len())
+	assert.Equal(t, &metapb.EpochLease{ReplicaID: 300}, pr.getLease())
 
 	pr, err = s.selectShard(0, []byte{1})
 	assert.NoError(t, err)

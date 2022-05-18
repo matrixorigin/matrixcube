@@ -190,7 +190,10 @@ func TestDoExecSplit(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 2}, Start: []byte{1}, End: []byte{10}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	storeID := uint64(1000)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 2}, Start: []byte{1}, End: []byte{10},
+		Replicas: []Replica{{ID: 2, StoreID: storeID}}}, Replica{ID: 2, StoreID: storeID}, s)
+	pr.sm.updateLease(&metapb.EpochLease{ReplicaID: 2})
 	ctx := newApplyContext()
 
 	ch := make(chan bool)
@@ -230,8 +233,8 @@ func TestDoExecSplit(t *testing.T) {
 	ctx.index = 100
 	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{
 		Requests: []rpcpb.SplitRequest{
-			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}},
-			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300}}},
+			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200, StoreID: storeID}}},
+			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300, StoreID: storeID}}},
 		},
 	}))
 	resp, err := pr.sm.execAdminRequest(ctx)
@@ -270,9 +273,11 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, metapb.ReplicaState_Normal, metadata[1].Metadata.State)
 	assert.Equal(t, []byte{1}, metadata[1].Metadata.Shard.Start)
 	assert.Equal(t, []byte{5}, metadata[1].Metadata.Shard.End)
+	assert.Equal(t, &metapb.EpochLease{ReplicaID: 200}, metadata[1].Metadata.Lease)
 	assert.Equal(t, metapb.ReplicaState_Normal, metadata[2].Metadata.State)
 	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
+	assert.Equal(t, &metapb.EpochLease{ReplicaID: 300}, metadata[2].Metadata.Lease)
 }
 
 func TestDoExecUpdateLease(t *testing.T) {

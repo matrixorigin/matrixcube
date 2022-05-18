@@ -37,6 +37,16 @@ func findReplica(shard Shard, storeID uint64) *Replica {
 	return nil
 }
 
+func findReplicaStoreID(shard Shard, replicaID uint64) uint64 {
+	for idx := range shard.Replicas {
+		if shard.Replicas[idx].ID == replicaID {
+			return shard.Replicas[idx].StoreID
+		}
+	}
+
+	return 0
+}
+
 func removeReplica(shard *Shard, storeID uint64) *Replica {
 	var removed *Replica
 	var newReplicas []Replica
