@@ -38,6 +38,7 @@ type replicaCreator struct {
 	store                             *store
 	sync, saveMetadata                bool
 	saveLog                           bool
+	leaseStore                        uint64
 	reason                            string
 	startReplica                      bool
 	campaign                          bool
@@ -85,6 +86,11 @@ func (rc *replicaCreator) withSaveMetadata(sync bool) *replicaCreator {
 
 func (rc *replicaCreator) withSaveLog() *replicaCreator {
 	rc.saveLog = true
+	return rc
+}
+
+func (rc *replicaCreator) withLeaseStore(storeID uint64) *replicaCreator {
+	rc.leaseStore = storeID
 	return rc
 }
 
@@ -150,12 +156,20 @@ func (rc *replicaCreator) maybeInitReplica(shards []Shard) {
 				log.ShardField("shard", shard))
 
 			ids = append(ids, shard.ID)
+			var lease *metapb.EpochLease
+			if rc.leaseStore > 0 {
+				lease = &metapb.EpochLease{
+					Epoch:     0,
+					ReplicaID: findReplica(shard, rc.leaseStore).ID,
+				}
+			}
 			sm = append(sm, metapb.ShardMetadata{
 				ShardID:  shard.ID,
 				LogIndex: 1,
 				Metadata: metapb.ShardLocalState{
 					State: metapb.ReplicaState_Normal,
 					Shard: shard,
+					Lease: lease,
 				},
 			})
 

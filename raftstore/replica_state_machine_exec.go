@@ -268,6 +268,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 	replicaFactory.withReason("splited").
 		withLogdbContext(d.wc).
 		withSaveLog().
+		withLeaseStore(findReplicaStoreID(d.metadataMu.shard, d.metadataMu.lease.GetReplicaID())).
 		create(newShards)
 
 	// We can't destroy Old Shard directly, but mark it as being destroyed. Because at this time, we are not
@@ -298,10 +299,16 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 	resp := newAdminResponseBatch(rpcpb.CmdBatchSplit, &rpcpb.BatchSplitResponse{
 		Shards: newShards,
 	})
+
+	var newLeases []*metapb.EpochLease
+	for _, sm := range replicaFactory.getShardsMetadata() {
+		newLeases = append(newLeases, sm.Metadata.Lease)
+	}
 	ctx.adminResult = &adminResult{
 		adminType: rpcpb.CmdBatchSplit,
 		splitResult: splitResult{
 			newShards: newShards,
+			newLeases: newLeases,
 		},
 	}
 	return resp, nil

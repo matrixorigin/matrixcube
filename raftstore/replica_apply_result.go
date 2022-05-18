@@ -17,12 +17,11 @@ import (
 	"fmt"
 	"time"
 
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 type applyResult struct {
@@ -63,6 +62,7 @@ type configChangeResult struct {
 
 type splitResult struct {
 	newShards []Shard
+	newLeases []*metapb.EpochLease
 }
 
 type compactionResult struct {
@@ -241,6 +241,8 @@ func (pr *replica) applySplit(result splitResult) {
 		withStartReplica(false, func(r *replica) {
 			r.stats.approximateKeys = estimatedKeys
 			r.stats.approximateSize = estimatedSize
+			r.sm.updateLease(result.newLeases[0])
+			result.newLeases = result.newLeases[1:]
 		}, func(r *replica) {
 			shard := r.getShard()
 			if isLeader && len(shard.Replicas) > 1 {
