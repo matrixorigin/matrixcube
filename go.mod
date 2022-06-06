@@ -6,8 +6,8 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/K-Phoen/grabana v0.4.1
 	github.com/RoaringBitmap/roaring v0.9.4
-	github.com/cockroachdb/errors v1.8.2
-	github.com/cockroachdb/pebble v0.0.0-20210503173641-1387689d3d7c
+	github.com/cockroachdb/errors v1.9.0
+	github.com/cockroachdb/pebble v0.0.0-20220407171941-2120d145e292
 	github.com/coreos/go-semver v0.3.0
 	github.com/docker/go-units v0.4.0
 	github.com/fagongzi/goetty v1.13.0
@@ -17,7 +17,7 @@ require (
 	github.com/google/btree v1.0.1
 	github.com/juju/ratelimit v1.0.1
 	github.com/lni/goutils v1.3.0
-	github.com/lni/vfs v0.2.1-0.20210810090357-27c7525cf64f
+	github.com/lni/vfs v0.2.1-0.20220408085249-8be85be1c3c1
 	github.com/montanaflynn/stats v0.6.6
 	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d
 	github.com/prometheus/client_golang v1.11.0
