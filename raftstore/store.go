@@ -11,6 +11,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//
+// The store implementation is developed by MatrixOrigin with reference
+// to multiple existing Raft based implementations.
+//
+
 package raftstore
 
 import (
