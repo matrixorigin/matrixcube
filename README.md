@@ -8,7 +8,11 @@ Internally, a well defined Key-Value [storage interface](https://github.com/matr
 
 With high availability and performance on the top of our priority list, MatrixCube employs a [Google Placement Driver](https://static.googleusercontent.com/media/research.google.com/en//archive/spanner-osdi2012.pdf) style component for automatic movement of data to balance load or repair Raft groups with failed replicas. 
 
-To the maximum of our knowledge, MatrixCube is currently the only open source library that provides all above features in Go. 
+MatrixCube's architecture is visualized in the following diagram - 
+
+![arch](./docs/arch.svg)
+
+To the maximum of our knowledge, MatrixCube is currently the only open source library that provides all above features in a single Go library. 
 
 ## Features
 
