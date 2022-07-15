@@ -32,7 +32,7 @@ go get github.com/matrixorigin/matrixcube@latest
 
 ## Example
 
-See our [TinyKV example](https://github.com/matrixorigin/tinykv) on how to use MatrixCube for building a highly scalable & strongly consistent Key-Value store. 
+See our [matrixkv example](https://github.com/matrixorigin/matrixkv) on how to use MatrixCube for building a highly scalable & strongly consistent Key-Value store. 
 
 ## License
 
